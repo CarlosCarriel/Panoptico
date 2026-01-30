@@ -1,0 +1,15 @@
+# Logs personales (contienen info de infraestructura)
+*.log
+
+# Perfiles de PowerShell (rutas específicas del usuario)
+profile.ps1
+profile.pwsh
+Microsoft.PowerShell_profile.ps1
+
+# Script de deploy (contiene rutas hardcodeadas)
+deploy.ps1
+
+# Archivos temporales
+*.tmp
+*.bak
+~$*
