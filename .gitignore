@@ -1,7 +1,7 @@
 # Logs personales (contienen info de infraestructura)
 *.log
 
-# Perfiles de PowerShell (rutas específicas del usuario)
+# Perfiles de PowerShell (rutas específicas)
 profile.ps1
 profile.pwsh
 Microsoft.PowerShell_profile.ps1

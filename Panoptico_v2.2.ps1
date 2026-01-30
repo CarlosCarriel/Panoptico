@@ -2,7 +2,6 @@
 # PANOPTICO DE INFRAESTRUCTURA - SOFTCFCA v2.2
 # Elite SysAdmin Toolkit: Memory, Network, CPU, GPU, LLM
 # =============================================================
-
 $startTimer = [System.Diagnostics.Stopwatch]::StartNew()
 Clear-Host
 
@@ -90,7 +89,7 @@ Write-Host "Escribe 'PAN' para ver el arsenal del Panóptico. [v2.2 - 2025]`n" -
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # [GLOBALS] Ollama & Caché (Persistencia de Estado)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# ✅ v2.1: Solo inicializa si NO existen (permite reload sin perder estado)
+# v2.1: Solo inicializa si NO existen (permite reload sin perder estado)
 if (-not (Get-Variable -Name OllamaJob -Scope Global -ErrorAction SilentlyContinue)) {
     $global:OllamaJob = $null
 }
@@ -130,12 +129,11 @@ if (-not (Get-Variable -Name ServiceSnapshot -Scope Global -ErrorAction Silently
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function top {
     Write-Host "`n╔════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-    Write-Host "║      PANÓPTICO - MONITOREO DE RECURSOS EN VIVO        ║" -ForegroundColor Cyan
-    Write-Host "╚════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
+    Write-Host "  ║      PANÓPTICO - MONITOREO DE RECURSOS EN VIVO                          ║" -ForegroundColor Cyan
+    Write-Host "  ╚════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
 
     # ─── RAM ───
     $os = Get-CimInstance Win32_OperatingSystem
-    # Corrección: Win32_OS devuelve KB. Dividir por 1MB (1024*1024) para GB.
     $total = [math]::Round($os.TotalVisibleMemorySize / 1MB, 2)
     $free = [math]::Round($os.FreePhysicalMemory / 1MB, 2)
     $used = $total - $free
@@ -196,7 +194,7 @@ function top {
     Get-Process | Sort-Object WS -Descending | Select-Object -First 8 |
     Format-Table @{L="Nombre"; E={$_.ProcessName}; W=20}, `
                  @{L="RAM(MB)"; E={[math]::Round($_.WS/1MB,2)}; W=12}, `
-                 @{L="Status"; E={if($_.WS -gt 1GB){"⚠️  PESADO"}else{"✓ OK"}}; W=12}
+                 @{L="Status"; E={if($_.WS -gt 1GB){"⚠️ PESADO"}else{" ✓ OK"}}; W=12}
 
     # ─── RED (Optimizada con hashtable O(1)) ───
     Write-Host "`n[ACTIVIDAD DE RED - TOP 5]" -ForegroundColor Magenta
@@ -271,7 +269,7 @@ function red {
 
     Write-Host "`n[TABLA DE DISPOSITIVOS DETECTADOS]" -ForegroundColor Cyan
 
-    # ✅ v2.1: Usa Get-NetNeighbor (moderno, multilenguaje) con fallback a arp -a
+    # v1.9: Usa Get-NetNeighbor (moderno, multilenguaje) con fallback a arp -a
     try {
         $results = Get-NetNeighbor -AddressFamily IPv4 -State Reachable,Stale -ErrorAction Stop |
                    Where-Object { $_.IPAddress -like "$subnet.*" } |
@@ -314,12 +312,12 @@ function red {
 }
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# [FUNC] ram1 - Limpieza Segura (10-15 segundos)
+# [FUNC] ram1 - Limpieza Segura
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function ram1 {
     Write-Host "`n╔════════════════════════════════════════════════════════╗" -ForegroundColor Green
-    Write-Host "║     LIMPIEZA RÁPIDA DE RAM (Modo Seguro)             ║" -ForegroundColor Green
-    Write-Host "╚════════════════════════════════════════════════════════╝" -ForegroundColor Green
+    Write-Host "  ║     LIMPIEZA RÁPIDA DE RAM (Modo Seguro)                                ║" -ForegroundColor Green
+    Write-Host "  ╚════════════════════════════════════════════════════════╝" -ForegroundColor Green
 
     Write-Host "`n[→] Terminando procesos bloatware..." -ForegroundColor Yellow
 
@@ -348,14 +346,14 @@ function ram1 {
     $afterRAM = (Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory # KB
     $freed = [math]::Round(($afterRAM - $beforeRAM) / 1024, 2) # KB -> MB
 
-    Write-Host "`n✓ LIMPIEZA EXITOSA" -ForegroundColor Green
+    Write-Host "`n✓ Limpieza exitosa" -ForegroundColor Green
     Write-Host "   Procesos terminados: $killed" -ForegroundColor Gray
     Write-Host "   RAM liberada: ~$freed MB" -ForegroundColor Gray
     Write-Host "   RAM libre ahora: $([math]::Round($afterRAM / 1MB, 2)) GB" -ForegroundColor Gray
 }
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# [FUNC] ram2 - Limpieza Potente (30-60 segundos)
+# [FUNC] ram2 - Limpieza Potente
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function ram2 {
     param([switch]$Force)
@@ -425,7 +423,7 @@ function ram2 {
 }
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# [FUNC] ramollama - Limpieza Máxima (90 segundos)
+# [FUNC] ramollama - Limpieza Máxima
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function ramollama {
     param([switch]$Force)
@@ -438,7 +436,7 @@ function ramollama {
     Write-Host "║   LIMPIEZA MÁXIMA PARA OLLAMA (Deep Learning Mode)   ║" -ForegroundColor Magenta
     Write-Host "╚════════════════════════════════════════════════════════╝" -ForegroundColor Magenta
 
-    Write-Host "`n⚠️  ADVERTENCIA: Modo bestia. Esto puede causar lag temporal (10-20 segundos)" -ForegroundColor Yellow
+    Write-Host "`n⚠️  ADVERTENCIA: Esto puede causar lag temporal (10-20 segundos)" -ForegroundColor Yellow
     Write-Host "    Úsalo solo en sesiones de trabajo largo (4+ horas de IA/Deep Learning)" -ForegroundColor Yellow
 
     if (-not $Force) {
@@ -495,7 +493,7 @@ function ramollama {
     Write-Host "   RAM liberada: ~$freed MB" -ForegroundColor Gray
     Write-Host "   RAM libre ahora: $([math]::Round($afterRAM / 1MB, 2)) GB (máximo disponible)" -ForegroundColor Gray
     Write-Host "   Procesos optimizados: $emptied" -ForegroundColor Gray
-    Write-Host "`n   ⚠️  Tu sistema ahora está en modo BESTIA. Lag temporal es normal (10-20s)." -ForegroundColor Yellow
+    Write-Host "`n   ⚠️  Sistema se encuentra en modo inmersivo, focalizando recursos hacia aplicaciones seleccionadas." -ForegroundColor Yellow
 }
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -900,7 +898,7 @@ function verseguridad {
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function hiberstatus {
     Write-Host "`n╔════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-    Write-Host "║   HIBER-STATUS: Auditoría de Servicios               ║" -ForegroundColor Cyan
+    Write-Host "║   HIBER-STATUS: Auditoría de Servicios                 ║" -ForegroundColor Cyan
     Write-Host "╚════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
 
     if ($global:HibernationLog.Count -eq 0) {
