@@ -1,13 +1,13 @@
 # =============================================================
 # PANOPTICO DE INFRAESTRUCTURA - SOFTCFCA v2.2
-# Elite SysAdmin Toolkit: Memory, Network, CPU, GPU, LLM
+# Kit de Herramientas SysAdmin: Memory, Network, CPU, GPU, LLM
 # =============================================================
 $startTimer = [System.Diagnostics.Stopwatch]::StartNew()
 Clear-Host
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 # [INIT] Sincronización dinámica de Búfer y Ventana
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 
 function Initialize-PanopticoEnv {
     [CmdletBinding()]
@@ -37,9 +37,9 @@ try {
     # Windows Terminal / VSCode manejan buffer dinámicamente (silencio)
 }
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 # [KERNEL] Definiciones Nativas (P/Invoke) - Carga Estática
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 # Compilamos la firma C# al inicio para evitar lag durante la ejecución.
 if (-not ([System.Management.Automation.PSTypeName]'WinAPI.Memory').Type) {
     $signature = @"
@@ -71,9 +71,9 @@ $Arsenal = [ordered] @{
     " "            = @{ Index = "19"; Description = "                                        ...CARGA COMPLETA." }
 }
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 # [INIT] Identidad y Estética
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 $priv = if ($global:PanopticoEnv.IsAdmin) { "CFCA_ADMIN" } else { "CFCA" }
 $colorHeader = if ($global:PanopticoEnv.IsAdmin) { "Red" } else { "Cyan" }
 $Host.UI.RawUI.WindowTitle = "PAN v2.2 | $priv Console"
@@ -86,9 +86,8 @@ $adapterName = if ($netConf) { $netConf.Description.Split('(')[0].Trim() } else 
 Write-Host "`n>>> SESSION: $priv | IP: $ip | ADAPTER: $adapterName <<<" -ForegroundColor $colorHeader
 Write-Host "Escribe 'PAN' para ver el arsenal del Panóptico. [v2.2 - 2025]`n" -ForegroundColor DarkGray
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # [GLOBALS] Ollama & Caché (Persistencia de Estado)
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 # v2.1: Solo inicializa si NO existen (permite reload sin perder estado)
 if (-not (Get-Variable -Name OllamaJob -Scope Global -ErrorAction SilentlyContinue)) {
     $global:OllamaJob = $null
@@ -107,9 +106,9 @@ if (-not (Get-Variable -Name GPUCache -Scope Global -ErrorAction SilentlyContinu
     $global:GPUCache = @{ Data = $null; Timestamp = (Get-Date).AddSeconds(-10) }
 }
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 # [GLOBALS] Sistema de Hibernación (Persistencia de Estado)
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 if (-not (Get-Variable -Name HibernationLog -Scope Global -ErrorAction SilentlyContinue)) {
     $global:HibernationLog = @()
 }
@@ -124,9 +123,9 @@ if (-not (Get-Variable -Name ServiceSnapshot -Scope Global -ErrorAction Silently
     $global:ServiceSnapshot = @{}
 }
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 # [FUNC] top - Monitor de Recursos (Snapshot)
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 function top {
     Write-Host "`n╔════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
     Write-Host "  ║      PANÓPTICO - MONITOREO DE RECURSOS EN VIVO                          ║" -ForegroundColor Cyan
@@ -228,9 +227,9 @@ function top {
     Write-Host ""
 }
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 # [FUNC] monitor - Dashboard en Vivo
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 function monitor {
     while($true) {
         Clear-Host
@@ -240,9 +239,8 @@ function monitor {
     }
 }
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # [FUNC] red - Scanner de Dispositivos en Red
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 function red {
     if ($ip -eq "127.0.0.1") {
         Write-Host "Error: No hay red activa." -ForegroundColor Red
@@ -311,9 +309,9 @@ function red {
     }
 }
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 # [FUNC] ram1 - Limpieza Segura
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 function ram1 {
     Write-Host "`n╔════════════════════════════════════════════════════════╗" -ForegroundColor Green
     Write-Host "  ║     LIMPIEZA RÁPIDA DE RAM (Modo Seguro)                                ║" -ForegroundColor Green
@@ -352,9 +350,9 @@ function ram1 {
     Write-Host "   RAM libre ahora: $([math]::Round($afterRAM / 1MB, 2)) GB" -ForegroundColor Gray
 }
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 # [FUNC] ram2 - Limpieza Potente
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 function ram2 {
     param([switch]$Force)
     if (-not $global:PanopticoEnv.IsAdmin) {
@@ -422,9 +420,9 @@ function ram2 {
     Write-Host "   RAM libre:    $([math]::Round($afterRAM / 1MB, 2)) GB" -ForegroundColor Gray
 }
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 # [FUNC] ramollama - Limpieza Máxima
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 function ramollama {
     param([switch]$Force)
     if (-not $global:PanopticoEnv.IsAdmin) {
@@ -496,9 +494,9 @@ function ramollama {
     Write-Host "`n   ⚠️  Sistema se encuentra en modo inmersivo, focalizando recursos hacia aplicaciones seleccionadas." -ForegroundColor Yellow
 }
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 # [FUNC] purga - Saneamiento del Sistema Operativo
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 function purga {
     Write-Host "`n╔════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
     Write-Host "║        SANEAMIENTO INTEGRAL DEL SISTEMA              ║" -ForegroundColor Cyan
@@ -564,9 +562,8 @@ function purga {
     Write-Host "`n✓ SISTEMA OPERATIVO PURGADO COMPLETAMENTE" -ForegroundColor Green
 }
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # [FUNC] purgap - Purga de Entorno de Datos
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 function purgap {
     Write-Host "`n╔════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
     Write-Host "║       PURGA PROFUNDA DE ENTORNO DE DATOS             ║" -ForegroundColor Cyan
@@ -602,9 +599,9 @@ function purgap {
     Write-Host "`n✓ ENTORNO DE DATOS PURGADO (Cristalino)" -ForegroundColor Green
 }
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 # [FUNC] focalizar - CPU Boost
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 function focalizar {
     param(
         [switch]$IsolateOllama
@@ -660,9 +657,9 @@ function focalizar {
     Write-Host "`n✓ CPU OPTIMIZADA PARA ENFOQUE" -ForegroundColor Yellow
 }
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 # [KERNEL] Motor de Hibernación Unificado (Refactorizado)
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 function Invoke-PanopticoHibernate {
     param(
         [Parameter(Mandatory)] [array]$Targets,
@@ -741,9 +738,9 @@ function Invoke-PanopticoHibernate {
     Write-Host "   RAM liberada: ~$freed MB" -ForegroundColor Gray
 }
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 # [FUNC] hiber1 - Telemetría Microsoft (Nivel 1)
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 function hiber1 {
     if (-not $global:PanopticoEnv.IsAdmin) { Write-Host "`n[✗] REQUIERE ADMIN." -ForegroundColor Red; return }
 
@@ -772,9 +769,9 @@ function hiber1 {
     Invoke-PanopticoHibernate -Targets $targets -PhaseName "Light"
 }
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 # [FUNC] hiber2 - OEM Bloatware (Nivel 2)
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 function hiber2 {
     if (-not $global:PanopticoEnv.IsAdmin) { Write-Host "`n[✗] REQUIERE ADMIN." -ForegroundColor Red; return }
 
@@ -798,9 +795,9 @@ function hiber2 {
     Invoke-PanopticoHibernate -Targets $targets -PhaseName "Terceros"
 }
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 # [FUNC] hiber3 - Modo Deep Work (Nivel 3)
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 function hiber3 {
     if (-not $global:PanopticoEnv.IsAdmin) { Write-Host "`n[✗] REQUIERE ADMIN." -ForegroundColor Red; return }
 
@@ -822,9 +819,9 @@ function hiber3 {
     Invoke-PanopticoHibernate -Targets $targets -PhaseName "DeepWork"
 }
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 # [FUNC] verseguridad - Auditoría de Seguridad
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 function verseguridad {
     Write-Host "`n╔════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
     Write-Host "║   PANÓPTICO - AUDITORÍA DE SEGURIDAD (Solo Lectura)      ║" -ForegroundColor Cyan
@@ -893,9 +890,9 @@ function verseguridad {
     Write-Host "   → Privilegios Admin: $(if($isAdmin){'SÍ'}else{'NO'})" -ForegroundColor $(if($isAdmin){'Green'}else{'Yellow'})
 }
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 # [FUNC] hiberstatus - Auditoría de Cambios
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 function hiberstatus {
     Write-Host "`n╔════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
     Write-Host "║   HIBER-STATUS: Auditoría de Servicios                 ║" -ForegroundColor Cyan
@@ -927,9 +924,9 @@ function hiberstatus {
     Write-Host "    $global:HibernationLogPath" -ForegroundColor DarkGray
 }
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 # [FUNC] reversahiber - Rollback de Cambios
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 function reversahiber {
     [CmdletBinding()]
     param(
@@ -1059,9 +1056,9 @@ function reversahiber {
     }
 }
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 # [FUNC] lab - Jupyter Lab
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 function lab {
     $sessionStart = Get-Date
     $logPath = [System.IO.Path]::Combine($env:USERPROFILE, "Documents", ".session_logs.txt")
@@ -1085,9 +1082,9 @@ function lab {
     }
 }
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 # [FUNC] ollama - LLM Daemon (Debug/Prod modes)
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 function ollama {
     param(
         [ValidateSet("start","stop","status","debug-on","debug-off","logs")]
@@ -1206,7 +1203,7 @@ function ollama {
                 Write-Host "`n[🔴] Ollama: INACTIVO (sin job)" -ForegroundColor Red
                 $proc = Get-Process -Name ollama -ErrorAction SilentlyContinue
                 if ($proc) {
-                    Write-Host "     ⚠️  Proceso huérfano detectado (PID: $($proc.Id))" -ForegroundColor Yellow
+                    Write-Host "   ⚠️  Proceso huérfano detectado (PID: $($proc.Id))" -ForegroundColor Yellow
                 }
                 return
             }
@@ -1233,9 +1230,9 @@ function ollama {
     }
 }
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 # [FUNC] pan - Menú Arsenal
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 function pan {
     Clear-Host
     Write-Host "   A1    ARSENAL DE COMANDOS v2.2                                                   " -ForegroundColor Black -BackgroundColor Cyan
@@ -1267,9 +1264,9 @@ function pan {
     Write-Host ""
 }
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 # [ATAJOS] Shortcuts de Teclado
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 # Limpiar colisiones
 if (Get-Alias e -ErrorAction SilentlyContinue) { Remove-Item Alias:e -Force }
 if (Get-Alias r -ErrorAction SilentlyContinue) { Remove-Item Alias:r -Force }
@@ -1284,9 +1281,9 @@ function r {
     . $profile
 }
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 # [INIT] Detección de Ollama Huérfano (Post-Reload)
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 if (-not $global:OllamaJob -or -not (Get-Job -Id $global:OllamaJob.Id -ErrorAction SilentlyContinue)) {
     $orphan = Get-Process -Name ollama -ErrorAction SilentlyContinue
     if ($orphan) {
@@ -1295,7 +1292,7 @@ if (-not $global:OllamaJob -or -not (Get-Job -Id $global:OllamaJob.Id -ErrorActi
     }
 }
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 # [OPTIMIZACIÓN] Lazy Loading de Conda... truco rescatadp del foro Ruso eliminado 
 
 # No invocamos conda al inicio. Creamos un wrapper que se auto-destruye y carga el real al usarse.
@@ -1328,9 +1325,7 @@ function Global:conda {
     }
 }
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# [BOOTSTRAP] Información Real
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# [BOOTSTRAP] 
 $startTimer.Stop()
 $loadTime = $startTimer.Elapsed.TotalMilliseconds.ToString('F0')
 
@@ -1339,5 +1334,5 @@ Write-Host " ✓ Sistema Listo | Carga: $($loadTime)ms | Atajos: c, e, ex, r" -F
 Write-Host "────────────────────────────────────────────────────────" -ForegroundColor DarkGray
 
 # ═══════════════════════════════════════════════════════════
-# FIN - PANÓPTICO v2.2
+# FIN - PANÓPTICO v2.2 | DICIEMBRE, 2025 | CFCA |
 # ═══════════════════════════════════════════════════════════
