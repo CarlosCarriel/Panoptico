@@ -1,4 +1,5 @@
-# Panóptico v2.2 — Windows Optimization & AI Workspace Toolkit
+# Panóptico v2.2 — Estación de Control y Vigilancia del Sistema  
+
 
 **Panóptico** es una suite personalizada de utilidades en PowerShell diseñada para centralizar el monitoreo de hardware y la optimización de recursos en estaciones de trabajo Windows. Está optimizada para flujos de trabajo de Ciencia de Datos, Desarrollo y ejecución de LLMs locales (Ollama).
 
