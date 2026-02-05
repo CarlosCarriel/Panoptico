@@ -1,13 +1,12 @@
 # =============================================================
-# PANOPTICO DE INFRAESTRUCTURA - SOFTCFCA v2.2
-# Kit de Herramientas SysAdmin: Memory, Network, CPU, GPU, LLM
+# PANÓPTICO v2.3 - Suite de Optimización del Sistema Windows
+# PowerShell 7.4+ compatible | Requiere permisos de administrador
+# Última actualización: 2026-02-02 | Arquitectura modular
 # =============================================================
 $startTimer = [System.Diagnostics.Stopwatch]::StartNew()
 Clear-Host
 
-
 # [INIT] Sincronización dinámica de Búfer y Ventana
-
 
 function Initialize-PanopticoEnv {
     [CmdletBinding()]
@@ -55,8 +54,8 @@ $Arsenal = [ordered] @{
     "RED"          = @{ Index = "03"; Description = "Escáner de red local (IP, Hostname, MAC)." }
     "VERSEGURIDAD" = @{ Index = "04"; Description = "Auditoría de Seguridad: Antivirus, Firewall, Puertos...," }
     "RAM1"         = @{ Index = "05"; Description = "Limpieza Rápida: GC + Bloatware superficial (Seguro)." }
-    "RAM2"         = @{ Index = "06"; Description = "Limpieza Profunda: Kernel EmptyWorkingSet (Admin)." }
-    "RAMOLLAMA"    = @{ Index = "07"; Description = "Limpieza Extrema: Modo dedicado para IA/LLM (Admin)." }
+    "RAM2"         = @{ Index = "06"; Description = "Limpieza profunda: Compactación de memoria (EmptyWorkingSet) (admin)." }
+    "RAM3"         = @{ Index = "07"; Description = "Limpieza Extrema: Modo dedicado para IA/LLM (Admin)." }
     "PURGA"        = @{ Index = "08"; Description = "Saneamiento OS: Temporales, DNS, Logs, WER." }
     "PURGAP"       = @{ Index = "09"; Description = "Saneamiento Dev: Conda, Pip, Jupyter Kernels." }
     "FOCALIZAR"    = @{ Index = "10"; Description = "CPU Boost: Prioridad Alta a procesos VIP (Python, Ollama)." }
@@ -76,7 +75,7 @@ $Arsenal = [ordered] @{
 
 $priv = if ($global:PanopticoEnv.IsAdmin) { "CFCA_ADMIN" } else { "CFCA" }
 $colorHeader = if ($global:PanopticoEnv.IsAdmin) { "Red" } else { "Cyan" }
-$Host.UI.RawUI.WindowTitle = "PAN v2.2 | $priv Console"
+$Host.UI.RawUI.WindowTitle = "PAN v2.3 | $priv Console"
 
 # [OPTIMIZACIÓN] Usamos CIM (WMI) en lugar de Get-NetAdapter para evitar cargar módulos pesados (ahorra ~3s)
 $netConf = Get-CimInstance Win32_NetworkAdapterConfiguration -Filter "IPEnabled = 'True'" | Select-Object -First 1
@@ -84,7 +83,7 @@ $ip = if ($netConf) { $netConf.IPAddress[0] } else { "127.0.0.1" }
 $adapterName = if ($netConf) { $netConf.Description.Split('(')[0].Trim() } else { "Loopback" }
 
 Write-Host "`n>>> SESSION: $priv | IP: $ip | ADAPTER: $adapterName <<<" -ForegroundColor $colorHeader
-Write-Host "Escribe 'PAN' para ver el arsenal del Panóptico. [v2.2 - 2025]`n" -ForegroundColor DarkGray
+Write-Host "Escribe 'PAN' para ver el arsenal del Panóptico. [v2.3 - 2025]`n" -ForegroundColor DarkGray
 
 # [GLOBALS] Ollama & Caché (Persistencia de Estado)
 
@@ -115,7 +114,7 @@ if (-not (Get-Variable -Name HibernationLog -Scope Global -ErrorAction SilentlyC
 
 # Path del log persistente (Aseguramos que el directorio exista)
 $hibDir = "$env:USERPROFILE\Documents\PowerShell"
-if (-not (Test-Path $hibDir)) { New-Item -ItemType Directory -Path $hibDir -Force | Out-Null }
+if (-not (Test-Path $hibDir)) { $null = New-Item -ItemType Directory -Path $hibDir -Force }
 $global:HibernationLogPath = "$hibDir\panoptico_hibernacion.log"
 
 # Snapshot de estado inicial (para rollback)
@@ -127,9 +126,9 @@ if (-not (Get-Variable -Name ServiceSnapshot -Scope Global -ErrorAction Silently
 # [FUNC] top - Monitor de Recursos (Snapshot)
 
 function top {
-    Write-Host "`n╔════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-    Write-Host "  ║      PANÓPTICO - MONITOREO DE RECURSOS EN VIVO                          ║" -ForegroundColor Cyan
-    Write-Host "  ╚════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
+    Write-Host "`n+========================================================+" -ForegroundColor White
+    Write-Host "|  PANÓPTICO - MONITOREO DE RECURSOS EN VIVO             |" -ForegroundColor White
+    Write-Host "+========================================================+" -ForegroundColor White
 
     # ─── RAM ───
     $os = Get-CimInstance Win32_OperatingSystem
@@ -193,10 +192,10 @@ function top {
     Get-Process | Sort-Object WS -Descending | Select-Object -First 8 |
     Format-Table @{L="Nombre"; E={$_.ProcessName}; W=20}, `
                  @{L="RAM(MB)"; E={[math]::Round($_.WS/1MB,2)}; W=12}, `
-                 @{L="Status"; E={if($_.WS -gt 1GB){"⚠️ PESADO"}else{" ✓ OK"}}; W=12}
+                 @{L="Status"; E={if($_.WS -gt 1GB){"PESADO"}else{"ligero"}}; W=12}
 
     # ─── RED (Optimizada con hashtable O(1)) ───
-    Write-Host "`n[ACTIVIDAD DE RED - TOP 5]" -ForegroundColor Magenta
+    Write-Host "`n[ACTIVIDAD DE RED - TOP 5]" -ForegroundColor DarkCyan
 
     # Caché de procesos para lookup O(1) en lugar de O(N*M)
     $procHash = @{}
@@ -269,23 +268,34 @@ function red {
 
     # v1.9: Usa Get-NetNeighbor (moderno, multilenguaje) con fallback a arp -a
     try {
-        $results = Get-NetNeighbor -AddressFamily IPv4 -State Reachable,Stale -ErrorAction Stop |
-                   Where-Object { $_.IPAddress -like "$subnet.*" } |
-                   ForEach-Object {
-                       $h = try {
-                           [System.Net.Dns]::GetHostEntry($_.IPAddress).HostName
-                       } catch {
-                           "Unknown"
-                       }
-                       [PSCustomObject]@{
-                           IP       = $_.IPAddress
-                           HostName = $h
-                           MAC      = $_.LinkLayerAddress
-                       }
-                   }
+        # Obtener datos sin resolver DNS inmediatamente
+        $rawResults = Get-NetNeighbor -AddressFamily IPv4 -State Reachable,Stale -ErrorAction Stop |
+                      Where-Object { $_.IPAddress -like "$subnet.*" } |
+                      Select-Object @{Name='IPAddress';Expression={$_.IPAddress}}, @{Name='MAC';Expression={$_.LinkLayerAddress}}
 
-        if ($results) {
-            $results | Sort-Object IP | Format-Table -AutoSize
+        if ($rawResults) {
+            # En PS7+ paralelizamos la resolución DNS con timeout; en PS5.1 mantenemos secuencial
+            if ($PSVersionTable.PSVersion.Major -ge 7) {
+                $enriched = $rawResults | ForEach-Object -Parallel {
+                    try {
+                        $dnsTask = [System.Net.Dns]::GetHostEntryAsync($_.IPAddress)
+                        if (-not $dnsTask.Wait(1000)) {
+                            [PSCustomObject]@{ IP = $_.IPAddress; MAC = $_.MAC; Host = 'timeout' }
+                        } else {
+                            [PSCustomObject]@{ IP = $_.IPAddress; MAC = $_.MAC; Host = $dnsTask.Result.HostName }
+                        }
+                    } catch {
+                        [PSCustomObject]@{ IP = $_.IPAddress; MAC = $_.MAC; Host = 'unknown' }
+                    }
+                } -ThrottleLimit 50
+            } else {
+                $enriched = $rawResults | ForEach-Object {
+                    try { $h = [System.Net.Dns]::GetHostEntry($_.IPAddress).HostName } catch { $h = 'Unknown' }
+                    [PSCustomObject]@{ IP = $_.IPAddress; MAC = $_.MAC; Host = $h }
+                }
+            }
+
+            $enriched | Sort-Object IP | Format-Table -AutoSize
         } else {
             Write-Host "No se hallaron dispositivos. (Asegura que tengan conectividad)" -ForegroundColor DarkGray
         }
@@ -313,45 +323,64 @@ function red {
 # [FUNC] ram1 - Limpieza Segura
 
 function ram1 {
-    Write-Host "`n╔════════════════════════════════════════════════════════╗" -ForegroundColor Green
-    Write-Host "  ║     LIMPIEZA RÁPIDA DE RAM (Modo Seguro)                                ║" -ForegroundColor Green
-    Write-Host "  ╚════════════════════════════════════════════════════════╝" -ForegroundColor Green
+    Write-Host "`n+========================================================+" -ForegroundColor Cyan
+    Write-Host "|  RAM-1: Limpieza rápida (sin admin)                   |" -ForegroundColor Cyan
+    Write-Host "+========================================================+" -ForegroundColor Cyan
 
-    Write-Host "`n[→] Terminando procesos bloatware..." -ForegroundColor Yellow
+    Write-Host "`n[i] Alcance: Procesos UI/UX y bloatware (sin servicios)" -ForegroundColor DarkGray
+    Write-Host "    Riesgo: Bajo (sin permisos admin, reversible con reboot)" -ForegroundColor DarkGray
 
-    $beforeRAM = (Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory # KB
+    $beforeRAM = (Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory
 
-    $targets = "NVIDIA Share", "PhoneExperienceHost", "StartMenuExperienceHost", "TextInputHost", "Widgets", "MicrosoftEdgeUpdate", "SearchIndexer", "AcrobatNotificationClient", "Lenovo.Modern.ImController", "OneDrive", "GooglePlayGamesAgent", "EpsonScan2"
+    Write-Host "`n[→] Buscando procesos objetivo..." -ForegroundColor Yellow
+
+    # Lista completa: nombres exactos + wildcards nativos
+    # SEGURO matar: procesos user-space NVIDIA (kernel driver persiste)
+    $targets = @(
+        "PhoneExperienceHost",
+        "StartMenuExperienceHost",
+        "TextInputHost",
+        "Widgets",
+        "MicrosoftEdgeUpdate",
+        "AcrobatNotificationClient",
+        "cloudcode_cli",           # Google Cloud Code CLI
+        "backgroundTaskHost",       # Microsoft Store bloatware
+        "*nvidia*",                 # NVIDIA App, etc. (user-space, SEGURO)
+        "nvcontainer*",             # nvcontainer.exe (user-space, libera VRAM)
+        "NVDisplay*"                # NVDisplay.Container.exe (user-space, SEGURO)
+    )
     
-    $killedProcs = Get-Process -Name $targets -ErrorAction SilentlyContinue | Stop-Process -Force -PassThru -ErrorAction SilentlyContinue
+    # Una única llamada (Get-Process -Name soporta wildcards nativamente)
+    $procsToKill = Get-Process -Name $targets -ErrorAction SilentlyContinue
+    
+    # Detener y capturar para informe
+    $killedProcs = $procsToKill | Stop-Process -Force -PassThru -ErrorAction SilentlyContinue
+    
     $killedCount = if ($killedProcs) { @($killedProcs).Count } else { 0 }
-    $killedNames = if ($killedProcs) { (@($killedProcs).ProcessName | Select-Object -Unique) -join ", " } else { "Ninguno" }
-
-    Write-Host "   ✓ $killedCount procesos terminados: [$killedNames]" -ForegroundColor Green
+    if ($killedCount -gt 0) {
+        $killedNames = (@($killedProcs).ProcessName | Select-Object -Unique | Sort-Object) -join ", "
+        Write-Host "   ✓ $killedCount procesos terminados: [$killedNames]" -ForegroundColor Green
+    } else {
+        Write-Host "   - No se encontraron procesos objetivo en ejecución" -ForegroundColor DarkGray
+    }
 
     Write-Host "`n[→] Ejecutando recolección de basura .NET..." -ForegroundColor Yellow
     [System.GC]::Collect()
     [System.GC]::WaitForPendingFinalizers()
     Write-Host "   ✓ Memoria administrada liberada" -ForegroundColor Green
 
-    # Detener servicio VPN de Bitdefender (si existe y sin admin)
-    Write-Host "`n[→] Optimizando servicios de red..." -ForegroundColor Yellow
-    if ($global:PanopticoEnv.IsAdmin) {
-        Stop-Service -Name "bdvpnService" -ErrorAction SilentlyContinue -Force
-    }
-    Write-Host "   ✓ Servicios optimizados" -ForegroundColor Green
+    $afterRAM = (Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory
+    $freed = [math]::Round(($afterRAM - $beforeRAM) / 1024, 2)
 
-    $afterRAM = (Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory # KB
-    $freed = [math]::Round(($afterRAM - $beforeRAM) / 1024, 2) # KB -> MB
-
-    Write-Host "`n✓ Limpieza exitosa" -ForegroundColor Green
-    Write-Host "   Procesos terminados: $killed" -ForegroundColor Gray
-    Write-Host "   RAM liberada: ~$freed MB" -ForegroundColor Gray
+    Write-Host "`n✓ Limpieza rápida completada" -ForegroundColor Green
+    Write-Host "   RAM liberada aprox.: ~$freed MB" -ForegroundColor Gray
     Write-Host "   RAM libre ahora: $([math]::Round($afterRAM / 1MB, 2)) GB" -ForegroundColor Gray
+    Write-Host "`n[i] Nota: Procesos NVIDIA user-space eliminados. Kernel driver (nvlddmkm.sys) persiste." -ForegroundColor Cyan
+    Write-Host "    Ollama/Miniphi3 en GPU: ✓ 100% seguro, + VRAM disponible" -ForegroundColor Green
+    Write-Host "`n[i] Tip: Ejecuta 'ram2' para limpieza media (WhatsApp/Telegram)" -ForegroundColor DarkGray
 }
 
-
-# [FUNC] ram2 - Limpieza Potente
+# [FUNC] RAM-2: Optimización del kernel (admin)
 
 function ram2 {
     param([switch]$Force)
@@ -362,19 +391,19 @@ function ram2 {
     # Rate limiting (sin cambios)
     $elapsed = (Get-Date) - $global:LastDeepClean
     if ($elapsed.TotalMinutes -lt 60 -and -not $Force) {
-        Write-Host "`n[⚠] ADVERTENCIA: Última limpieza hace $([math]::Round($elapsed.TotalMinutes)) min." -ForegroundColor Yellow
+        Write-Host "`n ADVERTENCIA: Última limpieza hace $([math]::Round($elapsed.TotalMinutes)) min." -ForegroundColor Yellow
         if ((Read-Host "    ¿Forzar? (s/N)") -ne 's') { return }
     }
 
-    Write-Host "`n╔════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-    Write-Host "║   LIMPIEZA PROFUNDA DE RAM (Kernel Mode Access)      ║" -ForegroundColor Cyan
-    Write-Host "╚════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
+    Write-Host "`n+========================================================+" -ForegroundColor Cyan
+    Write-Host "|   RAM-2: Optimización del kernel (admin)               |" -ForegroundColor Cyan
+    Write-Host "+========================================================+" -ForegroundColor Cyan
 
     $beforeRAM = (Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory
 
-    # 1. Terminación de Bloatware (Lista optimizada)
-    Write-Host "`n[1/4] Terminando bloatware..." -ForegroundColor Yellow
-    $bloat = @("NVIDIA Share", "PhoneExperienceHost", "StartMenuExperienceHost", "TextInputHost", "Widgets", "MicrosoftEdgeUpdate", "SearchIndexer", "RuntimeBroker")
+    # 1. Terminación de Bloatware (Limitado - solo procesos con leaks conocidos)
+    Write-Host "`n[1/3] Terminando procesos problemáticos (específico) ..." -ForegroundColor Yellow
+    $bloat = @("RuntimeBroker")
     
     $killedNames = @()
     foreach ($name in $bloat) {
@@ -383,59 +412,62 @@ function ram2 {
         }
     }
     $killedList = if ($killedNames) { ($killedNames | Select-Object -Unique) -join ", " } else { "Ninguno" }
-    Write-Host "      ✓ Bloatware eliminado: [$killedList]" -ForegroundColor Green
+    Write-Host "      Apps decorativas y prescindibles eliminadas: $killedList" -ForegroundColor Green
 
-    # 2. EmptyWorkingSet (API Nativa - Optimización .NET)
-    Write-Host "`n[2/4] Compactando memoria de procesos (EmptyWorkingSet)..." -ForegroundColor Yellow
+    # 2. Compactación de memoria (EmptyWorkingSet) - API nativa (optimización .NET)
+    Write-Host "`n2/3 - Compactando memoria de procesos (EmptyWorkingSet)..." -ForegroundColor Yellow
     
-    # [HACK] Acceso directo a .NET para evitar el overhead de Get-Process (20x más rápido)
+    # [HACK] Acceso directo a .NET para evitar el overhead de Get-Process
     $procs = [System.Diagnostics.Process]::GetProcesses()
     $emptied = 0
-    $threshold = 10MB # Umbral más bajo para mayor efectividad
+    $threshold = 10MB # límite inferior
 
     foreach ($proc in $procs) {
         try {
-            # Solo intentamos limpiar si usa más de 10MB para no perder tiempo en micro-procesos
+            # >10MB, evitando procesos muy pequeños
             if ($proc.WorkingSet64 -gt $threshold) {
-                [WinAPI.Memory]::EmptyWorkingSet($proc.Handle) | Out-Null
+                $null = [WinAPI.Memory]::EmptyWorkingSet($proc.Handle)
                 $emptied++
             }
         } catch {
             # Los procesos de sistema protegidos o zombies fallarán (es normal)
         }
     }
-    Write-Host "      ✓ $emptied procesos compactados a nivel de Kernel" -ForegroundColor Green
+    Write-Host "      $emptied procesos compactados a nivel de kernel" -ForegroundColor Green
 
-    # 3. Garbage Collection (.NET Interno)
-    Write-Host "`n[3/4] Saneamiento de .NET CLR..." -ForegroundColor Yellow
+    # 3. Liberación de memoria (.NET interno)
+    Write-Host "`n3/3 - Saneamiento del CLR (.NET)..." -ForegroundColor Yellow
     [System.GC]::Collect([System.GC]::MaxGeneration, [System.GCCollectionMode]::Forced)
-    Write-Host "      ✓ Heap liberado" -ForegroundColor Green
+    Write-Host "      Heap liberado" -ForegroundColor Green
 
     $afterRAM = (Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory
     $freed = [math]::Round(($afterRAM - $beforeRAM) / 1024, 2)
     $global:LastDeepClean = Get-Date
 
-    Write-Host "`n✓ LIMPIEZA COMPLETADA" -ForegroundColor Green
+    Write-Host "`nLimpieza completada" -ForegroundColor Green
     Write-Host "   RAM liberada: ~$freed MB" -ForegroundColor Gray
     Write-Host "   RAM libre:    $([math]::Round($afterRAM / 1MB, 2)) GB" -ForegroundColor Gray
 }
 
 
-# [FUNC] ramollama - Limpieza Máxima
+# [FUNC] RAM-3: Modo intenso (IA/ML - cierre agresivo)
 
-function ramollama {
+function ram3 {
     param([switch]$Force)
     if (-not $global:PanopticoEnv.IsAdmin) {
         Write-Host "`n[✗] REQUIERE ADMIN. Abre PowerShell como administrador (Win+X → A)" -ForegroundColor Red
         return
     }
 
-    Write-Host "`n╔════════════════════════════════════════════════════════╗" -ForegroundColor Magenta
-    Write-Host "║   LIMPIEZA MÁXIMA PARA OLLAMA (Deep Learning Mode)   ║" -ForegroundColor Magenta
-    Write-Host "╚════════════════════════════════════════════════════════╝" -ForegroundColor Magenta
+    Write-Host "`n+========================================================+" -ForegroundColor Cyan
+    Write-Host "|  RAM-3: Modo intenso (IA/ML - agresivo)                |" -ForegroundColor Cyan
+    Write-Host "+========================================================+" -ForegroundColor Cyan
 
-    Write-Host "`n⚠️  ADVERTENCIA: Esto puede causar lag temporal (10-20 segundos)" -ForegroundColor Yellow
-    Write-Host "    Úsalo solo en sesiones de trabajo largo (4+ horas de IA/Deep Learning)" -ForegroundColor Yellow
+    Write-Host "`n[i] Scope: Cierre agresivo apps + procesos Python ociosos (kernels Jupyter)" -ForegroundColor DarkGray
+    Write-Host "    Riesgo: ALTO (Cierra navegadores [permite Brave], Teams, Discord)" -ForegroundColor DarkGray
+    
+    Write-Host "`n  ADVERTENCIA: Cerrará TODAS las apps no esenciales" -ForegroundColor Yellow
+    Write-Host "    Uso recomendado: Sesiones intensivas ML/AI (Ollama, Jupyter)" -ForegroundColor Yellow
 
     if (-not $Force) {
         $confirm = Read-Host "`n¿Confirmar ejecución? (s/N)"
@@ -445,62 +477,76 @@ function ramollama {
         }
     }
 
-    $beforeRAM = (Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory # KB
+    $beforeRAM = (Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory
 
-    # 1. Matar procesos bloatware agresivamente
-    Write-Host "`n[1/5] Terminando bloatware (modo agresivo)..." -ForegroundColor Yellow
-    $aggressive = "NVIDIA Share", "PhoneExperienceHost", "StartMenuExperienceHost", "TextInputHost", "Widgets", `
-                  "MicrosoftEdgeUpdate", "SearchIndexer", "RuntimeBroker", "MicrosoftEdge", "GoogleChrome", "firefox", `
-                  "Teams", "Discord", "Spotify", "Calculator", "YourPhone", "OneDrive", "GooglePlayGamesAgent", "EpsonScan2", "node"
+    # 1. Apps pesadas (NO duplicar bloatware de ram1)
+    Write-Host "`n[1/4] Cerrando aplicaciones pesadas..." -ForegroundColor Yellow
+    $aggressive = @(
+        "MicrosoftEdge", "GoogleChrome", "firefox",
+        "Teams", "Discord", "Spotify",
+        "YourPhone", "OneDrive",
+        "node", "calculator"
+    )
     
-    $killedProcs = Get-Process -Name $aggressive -ErrorAction SilentlyContinue | Stop-Process -Force -PassThru -ErrorAction SilentlyContinue
-    $killedNames = if ($killedProcs) { (@($killedProcs).ProcessName | Select-Object -Unique) -join ", " } else { "Ninguno" }
-    Write-Host "      ✓ Procesos terminados: [$killedNames]" -ForegroundColor Green
+    $killedProcs = Get-Process -Name $aggressive -ErrorAction SilentlyContinue | 
+                   Stop-Process -Force -PassThru -ErrorAction SilentlyContinue
+    $killedNames = if ($killedProcs) { 
+        (@($killedProcs).ProcessName | Select-Object -Unique) -join ", " 
+    } else { 
+        "Ninguno" 
+    }
+    Write-Host "   Apps cerradas: $killedNames" -ForegroundColor Green
 
-    # 2. EmptyWorkingSet masivo
-    Write-Host "`n[2/5] Vaciando working sets (todos los procesos >100MB)..." -ForegroundColor Yellow
+    # 2. Compactación de memoria agresiva (EmptyWorkingSet) (umbral 100MB)
+    Write-Host "`n[2/4] Compactando procesos grandes (>100MB)..." -ForegroundColor Yellow
     $processes = Get-Process | Where-Object { $_.WS -gt 100MB }
     $emptied = 0
     foreach ($proc in $processes) {
         try {
-            [WinAPI.Memory]::EmptyWorkingSet($proc.Handle) | Out-Null
+            $null = [WinAPI.Memory]::EmptyWorkingSet($proc.Handle)
             $emptied++
         } catch { }
     }
-    Write-Host "      ✓ $emptied procesos optimizados" -ForegroundColor Green
+    Write-Host "   $emptied procesos optimizados" -ForegroundColor Green
 
-    # 3. Garbage Collection máximo
-    Write-Host "`n[3/5] Garbage Collection máximo (.NET)..." -ForegroundColor Yellow
+    # 3. Limpieza de memoria (agresiva, 3 ciclos)
+    Write-Host "`n3/4 - Liberación agresiva de memoria..." -ForegroundColor Yellow
     for ($i = 0; $i -lt 3; $i++) {
         [System.GC]::Collect([System.GC]::MaxGeneration, [System.GCCollectionMode]::Aggressive)
         [System.GC]::WaitForPendingFinalizers()
     }
-    Write-Host "      ✓ Memoria liberada (ciclos: 3)" -ForegroundColor Green
+    Write-Host "   Memoria liberada (3 ciclos completados)" -ForegroundColor Green
 
-    # 4. Limpiar Jupyter kernels fantasma
-    Write-Host "`n[4/5] Deteniendo kernels Python/Jupyter huérfanos..." -ForegroundColor Yellow
+    # 4. Jupyter kernels (específico ML/Data Science)
+    Write-Host "`n4/4 - Limpiando procesos Python ociosos (kernels Jupyter)..." -ForegroundColor Yellow
     Get-Process -Name "python" -ErrorAction SilentlyContinue | 
         Where-Object { $_.CommandLine -like "*ipykernel*" } | 
         Stop-Process -Force -ErrorAction SilentlyContinue
-    Write-Host "      ✓ Kernels eliminados" -ForegroundColor Green
+    Write-Host "   Kernels eliminados" -ForegroundColor Green
 
-    $afterRAM = (Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory # KB
+    $afterRAM = (Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory
     $freed = [math]::Round(($afterRAM - $beforeRAM) / 1024, 2)
 
-    Write-Host "`n✓ LIMPIEZA MÁXIMA COMPLETADA" -ForegroundColor Magenta
+    Write-Host "`nModo intenso completado" -ForegroundColor Green
     Write-Host "   RAM liberada: ~$freed MB" -ForegroundColor Gray
-    Write-Host "   RAM libre ahora: $([math]::Round($afterRAM / 1MB, 2)) GB (máximo disponible)" -ForegroundColor Gray
+    Write-Host "   RAM libre: $([math]::Round($afterRAM / 1MB, 2)) GB" -ForegroundColor Gray
     Write-Host "   Procesos optimizados: $emptied" -ForegroundColor Gray
-    Write-Host "`n   ⚠️  Sistema se encuentra en modo inmersivo, focalizando recursos hacia aplicaciones seleccionadas." -ForegroundColor Yellow
+    Write-Host "`n   Tip: Ejecuta 'focalizar -IsolateOllama' para aislamiento de CPU" -ForegroundColor DarkGray
 }
 
+# Alias para compatibilidad (mantener nombre histórico ramollama)
+function ramollama {
+    param([switch]$Force)
+    Write-Host "[i] 'ramollama' renombrado a 'ram3' (Deep Mode)" -ForegroundColor DarkGray
+    Write-Host "    Redirigiendo..." -ForegroundColor DarkGray
+    ram3 -Force:$Force
+}
 
 # [FUNC] purga - Saneamiento del Sistema Operativo
-
 function purga {
-    Write-Host "`n╔════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-    Write-Host "║        SANEAMIENTO INTEGRAL DEL SISTEMA              ║" -ForegroundColor Cyan
-    Write-Host "╚════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
+    Write-Host "`n+========================================================+" -ForegroundColor Cyan
+    Write-Host "|        SANEAMIENTO INTEGRAL DEL SISTEMA              |" -ForegroundColor Cyan
+    Write-Host "+========================================================+" -ForegroundColor Cyan
 
     # DNS Flush
     Write-Host "`n[→] DNS cache flush..." -ForegroundColor Yellow
@@ -559,15 +605,15 @@ function purga {
     Clear-RecycleBin -Confirm:$false -ErrorAction SilentlyContinue
     Write-Host "    [+] Recycle Bin vacío" -ForegroundColor Green
 
-    Write-Host "`n✓ SISTEMA OPERATIVO PURGADO COMPLETAMENTE" -ForegroundColor Green
+    Write-Host "`nSistema operativo purgado completamente" -ForegroundColor Green
 }
 
 # [FUNC] purgap - Purga de Entorno de Datos
 
 function purgap {
-    Write-Host "`n╔════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-    Write-Host "║       PURGA PROFUNDA DE ENTORNO DE DATOS             ║" -ForegroundColor Cyan
-    Write-Host "╚════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
+    Write-Host "`n+========================================================+" -ForegroundColor Cyan
+    Write-Host "|       PURGA PROFUNDA DE ENTORNO DE DATOS             |" -ForegroundColor Cyan
+    Write-Host "+========================================================+" -ForegroundColor Cyan
 
     # Matar Jupyter kernels
     Write-Host "`n[→] Deteniendo motores de ejecución huérfanos..." -ForegroundColor Yellow
@@ -596,7 +642,7 @@ function purgap {
     pip cache purge 2>$null
     Write-Host "    [+] PIP cache limpiado" -ForegroundColor Green
 
-    Write-Host "`n✓ ENTORNO DE DATOS PURGADO (Cristalino)" -ForegroundColor Green
+    Write-Host "`nEntorno de datos purgado" -ForegroundColor Green
 }
 
 
@@ -612,9 +658,9 @@ function focalizar {
         return
     }
 
-    Write-Host "`n╔════════════════════════════════════════════════════════╗" -ForegroundColor Yellow
-    Write-Host "║     FOCALIZAR: Optimización de CPU (Priority Boost)    ║" -ForegroundColor Yellow
-    Write-Host "╚════════════════════════════════════════════════════════╝" -ForegroundColor Yellow
+    Write-Host "`n+========================================================+" -ForegroundColor Cyan
+    Write-Host "|     FOCALIZAR: Optimización de CPU (Priority Boost)    |" -ForegroundColor Cyan
+    Write-Host "+========================================================+" -ForegroundColor Cyan
 
     $cpuInfo = Get-WmiObject Win32_Processor | Select-Object -First 1
     $cores = $cpuInfo.NumberOfLogicalProcessors
@@ -623,7 +669,7 @@ function focalizar {
     Write-Host "`n[i] CPU Detectada: $cores cores @ $freq GHz" -ForegroundColor Gray
 
     if ($IsolateOllama) {
-        Write-Host "`n[→] MODO AISLAMIENTO: Cores Exclusivos para Ollama" -ForegroundColor Magenta
+        Write-Host "`n[→] MODO AISLAMIENTO: Cores Exclusivos para Ollama" -ForegroundColor DarkCyan
         Write-Host "    Asignando $([math]::Round($cores/2)) cores a Ollama..." -ForegroundColor Yellow
 
         $ollamaProcs = Get-Process -Name ollama -ErrorAction SilentlyContinue
@@ -631,13 +677,13 @@ function focalizar {
             foreach ($proc in @($ollamaProcs)) {
                 try {
                     $proc.ProcessorAffinity = [IntPtr]([math]::Pow(2, [math]::Round($cores/2)) - 1)
-                    Write-Host "    ✓ PID $($proc.Id) focalizado" -ForegroundColor Green
+                    Write-Host "    PID $($proc.Id) focalizado" -ForegroundColor Green
                 } catch {
                     Write-Host "    ✗ Error focalizando PID $($proc.Id)" -ForegroundColor Yellow
                 }
             }
         } else {
-            Write-Host "    ⚠️  Ollama no está en ejecución" -ForegroundColor Yellow
+            Write-Host "    Ollama no está en ejecución" -ForegroundColor Yellow
         }
     } else {
         Write-Host "`n[→] MODO PRIORIDAD: Elevando clase de procesos VIP..." -ForegroundColor Yellow
@@ -651,14 +697,15 @@ function focalizar {
             } catch { }
         }
         $boostedList = if ($boostedNames) { ($boostedNames | Select-Object -Unique) -join ", " } else { "Ninguno" }
-        Write-Host "    ✓ Procesos boosteados (High Priority): [$boostedList]" -ForegroundColor Green
+        Write-Host "    Procesos boosteados (prioridad alta): $boostedList" -ForegroundColor Green
     }
 
-    Write-Host "`n✓ CPU OPTIMIZADA PARA ENFOQUE" -ForegroundColor Yellow
+    Write-Host "`nCPU optimizada para enfoque" -ForegroundColor Yellow
+
 }
 
 
-# [KERNEL] Motor de Hibernación Unificado (Refactorizado)
+# [KERNEL] Motor de Hibernación Unificado
 
 function Invoke-PanopticoHibernate {
     param(
@@ -670,7 +717,7 @@ function Invoke-PanopticoHibernate {
     Write-Host "`n[→] Ejecutando Hibernación Fase: $PhaseName..." -ForegroundColor Yellow
     
     # [SAFEGUARD] LISTA BLANCA DE PRODUCCIÓN (NO TOCAR JAMÁS)
-    $VitalServices = @("ClickToRunSvc", "Dhcp", "Dnscache", "LanmanWorkstation") 
+    $VitalServices = @("ClickToRunSvc", "Dhcp", "Dnscache", "LanmanWorkstation", "WSearch") 
     # Nota: Spooler se mantiene en hiber3, pero si decides protegerlo, agrégalo aquí.
     # ClickToRunSvc es el motor de Office/Excel.
 
@@ -700,10 +747,10 @@ function Invoke-PanopticoHibernate {
                 try {
                     Set-Service -Name $t.Name -StartupType Disabled -ErrorAction Stop
                     Stop-Service -Name $t.Name -Force -ErrorAction Stop
-                    Write-Host "   ✓ $($t.Name) → Hibernado" -ForegroundColor Green
+                        Write-Host "   $($t.Name) → Hibernado" -ForegroundColor Green
                     $hibernated += $t.Name
                 } catch {
-                    Write-Host "   ⚠ $($t.Name) → Falló: $($_.Exception.Message)" -ForegroundColor DarkYellow
+                    Write-Host "   $($t.Name) → Falló: $($_.Exception.Message)" -ForegroundColor DarkYellow
                 }
             } else {
                 Write-Host "   ⊗ $($t.Name) → No encontrado" -ForegroundColor DarkGray
@@ -715,13 +762,13 @@ function Invoke-PanopticoHibernate {
             try {
                 $task = Get-ScheduledTask -TaskName $t.Name -ErrorAction SilentlyContinue
                 if ($task -and $task.State -ne "Disabled") {
-                    Disable-ScheduledTask -InputObject $task -ErrorAction Stop | Out-Null
-                    Write-Host "   ✓ Tarea: $($t.Name) → Deshabilitada" -ForegroundColor Green
+                    $null = Disable-ScheduledTask -InputObject $task -ErrorAction Stop
+                    Write-Host "   Tarea: $($t.Name) → Deshabilitada" -ForegroundColor Green
                     $hibernated += "TASK::$($t.Name)"
                     
                     $global:ServiceSnapshot["TASK::$($t.Name)"] = @{ Status = "Enabled"; StartType = "Task"; Timestamp = Get-Date; Phase = $PhaseName }
                 }
-            } catch { Write-Host "   ⚠ Tarea: $($t.Name) → Error" -ForegroundColor DarkYellow }
+            } catch { Write-Host "   Tarea: $($t.Name) → Error" -ForegroundColor DarkYellow }
         }
     }
 
@@ -733,7 +780,7 @@ function Invoke-PanopticoHibernate {
     $global:HibernationLog += $logEntry
     $logEntry | Export-Csv -Path $global:HibernationLogPath -Append -NoTypeInformation -Force
 
-    Write-Host "`n✓ FASE $PhaseName COMPLETADA" -ForegroundColor Green
+        Write-Host "`nFase $PhaseName completada" -ForegroundColor Green
     Write-Host "   Objetivos hibernados: $($hibernated.Count)" -ForegroundColor Gray
     Write-Host "   RAM liberada: ~$freed MB" -ForegroundColor Gray
 }
@@ -744,9 +791,9 @@ function Invoke-PanopticoHibernate {
 function hiber1 {
     if (-not $global:PanopticoEnv.IsAdmin) { Write-Host "`n[✗] REQUIERE ADMIN." -ForegroundColor Red; return }
 
-    Write-Host "`n╔════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-    Write-Host "║   HIBER-1: Telemetría Microsoft (Recupera ~200MB)    ║" -ForegroundColor Cyan
-    Write-Host "╚════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
+    Write-Host "`n+========================================================+" -ForegroundColor Cyan
+    Write-Host "|   HIBER-1: Telemetría Microsoft                        |" -ForegroundColor Cyan
+    Write-Host "+========================================================+" -ForegroundColor Cyan
 
     # Targets validados (telemetría MS oficial)
     $targets = @(
@@ -766,7 +813,7 @@ function hiber1 {
         @{Type="Service"; Name="CDPSvc"; Desc="Connected Devices Platform (Port 5040)"}
     )
 
-    Invoke-PanopticoHibernate -Targets $targets -PhaseName "Light"
+        Invoke-PanopticoHibernate -Targets $targets -PhaseName "ligero"
 }
 
 
@@ -775,9 +822,9 @@ function hiber1 {
 function hiber2 {
     if (-not $global:PanopticoEnv.IsAdmin) { Write-Host "`n[✗] REQUIERE ADMIN." -ForegroundColor Red; return }
 
-    Write-Host "`n╔════════════════════════════════════════════════════════╗" -ForegroundColor Magenta
-    Write-Host "║   HIBER-2: Servicios Auxiliares (OEM y Terceros)     ║" -ForegroundColor Magenta
-    Write-Host "╚════════════════════════════════════════════════════════╝" -ForegroundColor Magenta
+    Write-Host "`n+========================================================+" -ForegroundColor Cyan
+    Write-Host "|   HIBER-2: servicios auxiliares (OEM y terceros)     |" -ForegroundColor Cyan
+    Write-Host "+========================================================+" -ForegroundColor Cyan
 
     $targets = @(
         @{Type="Service"; Name="LenovoVantageService"; Desc="Lenovo Vantage Service"},
@@ -792,7 +839,7 @@ function hiber2 {
         @{Type="Service"; Name="AnyDesk"; Desc="AnyDesk Service"}
     )
 
-    Invoke-PanopticoHibernate -Targets $targets -PhaseName "Terceros"
+        Invoke-PanopticoHibernate -Targets $targets -PhaseName "auxiliares"
 }
 
 
@@ -801,13 +848,12 @@ function hiber2 {
 function hiber3 {
     if (-not $global:PanopticoEnv.IsAdmin) { Write-Host "`n[✗] REQUIERE ADMIN." -ForegroundColor Red; return }
 
-    Write-Host "`n╔════════════════════════════════════════════════════════╗" -ForegroundColor Red
-    Write-Host "║   HIBER-3: DEEP WORK (Indexador, Spooler, SysMain)   ║" -ForegroundColor Red
-    Write-Host "╚════════════════════════════════════════════════════════╝" -ForegroundColor Red
+    Write-Host "`n+========================================================+" -ForegroundColor Cyan
+    Write-Host "|   HIBER-3: trabajo profundo (indexador, spooler, sysmain)   |" -ForegroundColor Cyan
+    Write-Host "+========================================================+" -ForegroundColor Cyan
     Write-Host "    [!] Desactiva búsqueda de Windows e impresión." -ForegroundColor Yellow
 
     $targets = @(
-        @{Type="Service"; Name="WSearch"; Desc="Windows Search (Indexador)"},
         @{Type="Service"; Name="Spooler"; Desc="Print Spooler (Impresora)"},
         @{Type="Service"; Name="SysMain"; Desc="Superfetch (SysMain)"},
         @{Type="Service"; Name="Themes"; Desc="Temas de Windows"},
@@ -816,16 +862,16 @@ function hiber3 {
         @{Type="Service"; Name="Stisvc"; Desc="Windows Image Acquisition (Scanner)"}
     )
 
-    Invoke-PanopticoHibernate -Targets $targets -PhaseName "DeepWork"
+        Invoke-PanopticoHibernate -Targets $targets -PhaseName "trabajo profundo"
 }
 
 
 # [FUNC] verseguridad - Auditoría de Seguridad
 
 function verseguridad {
-    Write-Host "`n╔════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-    Write-Host "║   PANÓPTICO - AUDITORÍA DE SEGURIDAD (Solo Lectura)      ║" -ForegroundColor Cyan
-    Write-Host "╚════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
+    Write-Host "`n+========================================================+" -ForegroundColor Cyan
+    Write-Host "|   PANÓPTICO - AUDITORÍA DE SEGURIDAD (Solo Lectura)    |" -ForegroundColor Cyan
+    Write-Host "+========================================================+" -ForegroundColor Cyan
 
     # 1. Antivirus & EDR
     Write-Host "`n[1] Motores de Seguridad (Servicios)" -ForegroundColor Yellow
@@ -894,9 +940,9 @@ function verseguridad {
 # [FUNC] hiberstatus - Auditoría de Cambios
 
 function hiberstatus {
-    Write-Host "`n╔════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-    Write-Host "║   HIBER-STATUS: Auditoría de Servicios                 ║" -ForegroundColor Cyan
-    Write-Host "╚════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
+    Write-Host "`n+========================================================+" -ForegroundColor Cyan
+    Write-Host "|   HIBER-STATUS: Auditoría de Servicios                 |" -ForegroundColor Cyan
+    Write-Host "+========================================================+" -ForegroundColor Cyan
 
     if ($global:HibernationLog.Count -eq 0) {
         Write-Host "`n[i] No hay operaciones de hibernación registradas en esta sesión." -ForegroundColor DarkGray
@@ -939,9 +985,9 @@ function reversahiber {
         return
     }
 
-    Write-Host "`n╔════════════════════════════════════════════════════════╗" -ForegroundColor Green
-    Write-Host "║   REVERSA-HIBER: Restaurando Servicios               ║" -ForegroundColor Green
-    Write-Host "╚════════════════════════════════════════════════════════╝" -ForegroundColor Green
+    Write-Host "`n+========================================================+" -ForegroundColor Cyan
+    Write-Host "|   REVERSA-HIBER: Restaurando Servicios               |" -ForegroundColor Cyan
+    Write-Host "+========================================================+" -ForegroundColor Cyan
 
     $beforeRAM = (Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory
 
@@ -968,9 +1014,9 @@ function reversahiber {
             foreach ($path in $snapshot.Paths) {
                 try {
                     Remove-MpPreference -ExclusionPath $path -ErrorAction Stop
-                    Write-Host "      ✓ Exclusión removida: $path" -ForegroundColor Green
+                    Write-Host "      Exclusión removida: $path" -ForegroundColor Green
                 } catch {
-                    Write-Host "      ⚠ Falló remover: $path" -ForegroundColor DarkYellow
+                    Write-Host "      Falló remover: $path" -ForegroundColor DarkYellow
                 }
             }
             $reverted += $name
@@ -981,26 +1027,26 @@ function reversahiber {
         if ($name -eq "WinDefend_Registry") {
             try {
                 Remove-ItemProperty -Path $snapshot.RegPath -Name "DisableAntiSpyware" -ErrorAction Stop
-                Write-Host "      ✓ Registro revertido (DisableAntiSpyware removido)" -ForegroundColor Green
+                Write-Host "      Registro revertido (DisableAntiSpyware removido)" -ForegroundColor Green
                 Write-Host "      ⚠ REBOOT REQUERIDO para aplicar" -ForegroundColor Yellow
             } catch {
-                Write-Host "      ⚠ Falló revertir Registry" -ForegroundColor DarkYellow
+                Write-Host "      Falló revertir Registry" -ForegroundColor DarkYellow
             }
             $reverted += $name
             continue
         }
 
-        # Caso especial: Task Scheduler (Detectado por prefijo TASK::)
+        # Caso especial: Task Scheduler 
         if ($name -like "TASK::*") {
             $realTaskName = $name -replace "TASK::",""
             try {
                 $task = Get-ScheduledTask -TaskName $realTaskName -ErrorAction SilentlyContinue
                 if ($task -and $task.State -eq "Disabled") {
-                    Enable-ScheduledTask -InputObject $task -ErrorAction Stop | Out-Null
-                    Write-Host "      ✓ Task reactivada: $realTaskName" -ForegroundColor Green
+                    $null = Enable-ScheduledTask -InputObject $task -ErrorAction Stop
+                    Write-Host "      Task reactivada: $realTaskName" -ForegroundColor Green
                 }
             } catch {
-                Write-Host "      ⚠ Falló reactivar Task: $realTaskName" -ForegroundColor DarkYellow
+                Write-Host "      Falló reactivar Task: $realTaskName" -ForegroundColor DarkYellow
             }
             $reverted += $name
             continue
@@ -1014,10 +1060,10 @@ function reversahiber {
                 if ($snapshot.Status -eq "Running") {
                     Start-Service -Name $name -ErrorAction Stop
                 }
-                Write-Host "      ✓ Servicio revertido: $name ($($snapshot.StartType), $($snapshot.Status))" -ForegroundColor Green
+                Write-Host "      Servicio revertido: $name ($($snapshot.StartType), $($snapshot.Status))" -ForegroundColor Green
                 $reverted += $name
             } catch {
-                Write-Host "      ⚠ Falló revertir: $name" -ForegroundColor DarkYellow
+                Write-Host "      Falló revertir: $name" -ForegroundColor DarkYellow
             }
         }
     }
@@ -1032,12 +1078,145 @@ function reversahiber {
         }
     }
 
-    # [INTEGRIDAD] Verificar Office (Solicitud de usuario)
+    # [INTEGRIDAD] Verificar Office
     $officeSvc = Get-Service -Name "ClickToRunSvc" -ErrorAction SilentlyContinue
     if ($officeSvc -and $officeSvc.Status -ne "Running") {
         Write-Host "   [!] ALERTA: Motor Office apagado. Reactivando..." -ForegroundColor Yellow
         Set-Service -Name "ClickToRunSvc" -StartupType Automatic
         Start-Service -Name "ClickToRunSvc" -ErrorAction SilentlyContinue
+    }
+
+    # --- [FASE 2: INTEGRIDAD DE SERVICIOS CENTRALES] ---
+    Write-Host "`n[→] Verificando integridad de servicios vitales (v2)..." -ForegroundColor Yellow
+
+    # Lista de exclusión (EDR / motores de seguridad) - NO tocar
+    $ExcludedServices = @(
+        "WdNisSvc", "WinDefend", "CSFalconService", "SentinelAgent", "CrowdStrike", "McAfeeFramework", "Sophos", "CarbonBlack" )
+
+    # Core ampliado
+    $CoreServices = @(
+        @{ Name = "RpcSs"; Desc = "RPC Endpoint Mapper (crítico)" },
+        @{ Name = "EventLog"; Desc = "Registro de Eventos (crítico)" },
+        @{ Name = "WSearch"; Desc = "Búsqueda e indexación (Windows Search)" }, # retirado de funciones anteriores, pero si manualmente lo coloco a dormir, lo olvido, aquí se reestablecerá.
+        @{ Name = "Spooler"; Desc = "Subsistema de impresión (Spooler)" },
+        @{ Name = "AudioSrv"; Desc = "Servidor de audio (AudioSrv)" },
+        @{ Name = "Themes"; Desc = "Temas (explorer UI)" },
+        @{ Name = "ClickToRunSvc"; Desc = "Motor Office (ClickToRun)" },
+        @{ Name = "LanmanWorkstation"; Desc = "Cliente de servicios de red (LanmanWorkstation)" }
+    )
+
+    foreach ($core in $CoreServices) {
+        # Excluir EDR/AV explícitos
+        if ($ExcludedServices -contains $core.Name) {
+            Write-Host "    [i] $($core.Name): Excluido (EDR)" -ForegroundColor DarkGray
+            continue
+        }
+
+        $s = Get-Service -Name $core.Name -ErrorAction SilentlyContinue
+        if ($null -eq $s) {
+            Write-Host "    Servicio $($core.Name) no encontrado en este sistema" -ForegroundColor DarkGray
+            continue
+        }
+
+        if ($s.Status -ne 'Running' -or $s.StartType -eq 'Disabled') {
+            Write-Host "    Reparando: $($core.Desc) ($($core.Name))" -ForegroundColor Cyan
+
+            $regPath = "HKLM:\SYSTEM\CurrentControlSet\Services\$($core.Name)"
+            # Backup valor Start si existe (persistir en ServiceSnapshot en memoria)
+            try {
+                $origStart = (Get-ItemProperty -Path $regPath -Name 'Start' -ErrorAction SilentlyContinue).Start
+                if ($null -ne $origStart) { $global:ServiceSnapshot["CORE_BACKUP::$($core.Name)"] = @{ Start = $origStart; Timestamp = Get-Date } }
+            } catch { }
+
+            $repaired = $false
+
+            # NIVEL 1: Set-Service
+            try {
+                Set-Service -Name $core.Name -StartupType Automatic -ErrorAction Stop
+                $repaired = $true
+                Write-Host "      Nivel1: Set-Service aplicado" -ForegroundColor DarkGray
+            } catch {
+                Write-Host "      Nivel1: Falló Set-Service ($($_.Exception.Message))" -ForegroundColor DarkYellow
+            }
+
+            # NIVEL 2: Registro directo y verificación
+            if (-not $repaired) {
+                try {
+                    Set-ItemProperty -Path $regPath -Name 'Start' -Value 2 -ErrorAction Stop
+                    $check = (Get-ItemProperty -Path $regPath -Name 'Start' -ErrorAction SilentlyContinue).Start
+                    if ($check -eq 2) { $repaired = $true; Write-Host "      Nivel2: Registro Start=2 verificado" -ForegroundColor DarkGray }
+                    else { Write-Host "      Nivel2: Verificación falló (Start=$check)" -ForegroundColor DarkYellow }
+                } catch {
+                    Write-Host "      Nivel2: Falló escritura en Registro ($($_.Exception.Message))" -ForegroundColor DarkYellow
+                }
+            }
+
+            # NIVEL 3: sc.exe config + validar $LASTEXITCODE
+            if (-not $repaired) {
+                try {
+                    & sc.exe config $($core.Name) start= auto > $null 2>&1
+                    if ($LASTEXITCODE -eq 0) { $repaired = $true; Write-Host "      Nivel3: sc.exe config OK" -ForegroundColor DarkGray }
+                    else { Write-Host "      Nivel3: sc.exe retornó $LASTEXITCODE" -ForegroundColor DarkYellow }
+                } catch {
+                    Write-Host "      Nivel3: sc.exe falló" -ForegroundColor DarkYellow
+                }
+            }
+
+            Start-Sleep -Milliseconds 300
+
+            # Arrancar dependencias primero
+            try {
+                $svcObj = Get-Service -Name $core.Name -ErrorAction Stop
+                $deps = $svcObj.ServicesDependedOn | ForEach-Object { $_.Name }
+                foreach ($d in $deps) {
+                    try { Start-Service -Name $d -ErrorAction Stop; Write-Host "        Dependencia $d iniciada" -ForegroundColor DarkGray } catch { Write-Host "        No se pudo iniciar dependencia $d" -ForegroundColor DarkYellow }
+                }
+            } catch { }
+
+            # Intentar Start con retry
+            if ($repaired) {
+                $attempt = 0; $started = $false
+                while ($attempt -lt 3 -and -not $started) {
+                    try {
+                        Start-Service -Name $core.Name -ErrorAction Stop
+                        $started = $true
+                        Write-Host "    $($core.Name) activo" -ForegroundColor Green
+                        $global:HibernationLog += [PSCustomObject]@{ Timestamp = Get-Date; Function = 'revert-core'; Service = $core.Name; Action = 'Started' }
+                    } catch {
+                        $attempt++; Start-Sleep -Milliseconds 500
+                    }
+                }
+                if (-not $started) {
+                    Write-Host "    No se pudo arrancar $($core.Name) tras retries" -ForegroundColor Red
+                    $global:HibernationLog += [PSCustomObject]@{ Timestamp = Get-Date; Function = 'revert-core'; Service = $core.Name; Action = 'FailedStart'; Error = 'StartRetriesExceeded' }
+                }
+            } else {
+                Write-Host "    Reparación fallida para $($core.Name) (ningún nivel aplicó)" -ForegroundColor Red
+                $global:HibernationLog += [PSCustomObject]@{ Timestamp = Get-Date; Function = 'revert-core'; Service = $core.Name; Action = 'RepairFailed' }
+            }
+        } else {
+            Write-Host "    $($core.Name) operativo" -ForegroundColor DarkGray
+        }
+    }
+
+    # --- [FASE 3: REPARACIÓN VISUAL (GHOSTING)] ---
+    Write-Host "`n[→] Refrescando caché del Explorador (si disponible)..." -ForegroundColor Yellow
+    try {
+        if (Get-Command ie4uinit.exe -ErrorAction SilentlyContinue) {
+            ie4uinit.exe -show 2>$null
+        } else {
+            # restart Explorer como último recurso (intento cuidadoso)
+            try {
+                $explorer = Get-Process -Name explorer -ErrorAction SilentlyContinue
+                if ($explorer) {
+                    # En lugar de matar explorer, intentamos refresh vía COM
+                    try { (New-Object -ComObject Shell.Application).Namespace(0).Self.InvokeVerb('Refresh') } catch { }
+                }
+            } catch { }
+        }
+        Write-Host "    Vista de archivos actualizada" -ForegroundColor Green
+    } catch {
+        Write-Host "    No se pudo forzar refresh del Explorador" -ForegroundColor DarkYellow
     }
 
     $afterRAM = (Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory
@@ -1048,11 +1227,11 @@ function reversahiber {
     $global:HibernationLog += $logEntry
     $logEntry | Export-Csv -Path $global:HibernationLogPath -Append -NoTypeInformation
 
-    Write-Host "`n✓ REVERSIÓN COMPLETADA" -ForegroundColor Green
+    Write-Host "`nReversión completada" -ForegroundColor Green
     Write-Host "   Servicios revertidos: $($reverted.Count) ([$($reverted -join ', ')])" -ForegroundColor Gray
     Write-Host "   Recursos re-ocupados (RAM): ~$consumed MB" -ForegroundColor Yellow
     if ($Phase -eq "Antivirus-Defender") {
-        Write-Host "   ⚠ REBOOT REQUERIDO para aplicar cambios de Defender" -ForegroundColor Yellow
+        Write-Host "   REBOOT REQUERIDO para aplicar cambios de Defender" -ForegroundColor Yellow
     }
 }
 
@@ -1094,7 +1273,7 @@ function ollama {
     switch ($Action) {
         "debug-on" {
             $global:OllamaDebugMode = $true
-            Write-Host "`n[+] DEBUG MODE ACTIVADO para Ollama" -ForegroundColor Magenta
+            Write-Host "`n[+] DEBUG MODE ACTIVADO para Ollama" -ForegroundColor DarkCyan
             Write-Host "    El próximo 'ollama start' usará OLLAMA_DEBUG=1 y mostrará logs completos." -ForegroundColor DarkGray
         }
 
@@ -1181,7 +1360,7 @@ function ollama {
                     Write-Host "      - PID: $($proc.Id), RAM: $([math]::Round($proc.WS/1MB, 2)) MB" -ForegroundColor DarkGray
                     try {
                         Stop-Process -InputObject $proc -Force -ErrorAction Stop
-                        Write-Host "        [✓] Eliminado" -ForegroundColor Green
+                        Write-Host "        Eliminado" -ForegroundColor Green
                     } catch {
                         Write-Host "        [✗] Error: $_" -ForegroundColor Red
                     }
@@ -1200,7 +1379,7 @@ function ollama {
             }
 
             if (-not $global:OllamaJob) {
-                Write-Host "`n[🔴] Ollama: INACTIVO (sin job)" -ForegroundColor Red
+                Write-Host "`n Ollama: INACTIVO (sin job)" -ForegroundColor Red
                 $proc = Get-Process -Name ollama -ErrorAction SilentlyContinue
                 if ($proc) {
                     Write-Host "   ⚠️  Proceso huérfano detectado (PID: $($proc.Id))" -ForegroundColor Yellow
@@ -1219,7 +1398,7 @@ function ollama {
 
             $statusText = if ($isReachable) { "🟢 ACTIVO" } else { "🟡 CORRIENDO (sin respuesta HTTP)" }
             $statusColor = if ($isReachable) { "Green" } else { "Yellow" }
-            $modeColor = if ($global:OllamaDebugMode) { "Magenta" } else { "White" }
+            $modeColor = if ($global:OllamaDebugMode) { "DarkCyan" } else { "White" }
 
             Write-Host "`nOllama Status:" -ForegroundColor Cyan
             Write-Host "  State:    $statusText" -ForegroundColor $statusColor
@@ -1235,10 +1414,12 @@ function ollama {
 
 function pan {
     Clear-Host
-    Write-Host "   A1    ARSENAL DE COMANDOS v2.2                                                   " -ForegroundColor Black -BackgroundColor Cyan
-    Write-Host "   _________________________________________________________________________________" -ForegroundColor Black -BackgroundColor Cyan
-    Write-Host "   A2  | COMANDO        | DESCRIPCION                                               " -ForegroundColor Black -BackgroundColor Cyan
-    Write-Host "   ----|----------------|-----------------------------------------------------------" -ForegroundColor Black -BackgroundColor Cyan
+    Write-Host "   +========================================================+" -ForegroundColor DarkCyan
+    Write-Host "   |  HERRAMIENTAS DEL SISTEMA v2.3                         |" -ForegroundColor DarkCyan
+    Write-Host "   |  Optimizacion y Mantenimiento                          |" -ForegroundColor DarkCyan
+    Write-Host "   +========================================================+" -ForegroundColor DarkCyan
+    Write-Host "   A2  | COMANDO        | DESCRIPCION                                               " -ForegroundColor DarkCyan
+    Write-Host "   ----|----------------|-----------------------------------------------------------" -ForegroundColor DarkCyan
     
     $i = 3
     $Arsenal.Keys | ForEach-Object {
@@ -1248,19 +1429,19 @@ function pan {
         
         $desc = $details.Description
         if ($desc.Length -lt 58) { $desc = $desc.PadRight(58) }
-        Write-Host ("   {0,-3} | {1,-14} | {2}" -f $rowID, $command, $desc) -ForegroundColor Black -BackgroundColor Cyan
+        Write-Host ("   {0,-3} | {1,-14} | {2}" -f $rowID, $command, $desc) -ForegroundColor White
         $i++
     }
-    Write-Host "   _________________________________________________________________________________" -ForegroundColor Black -BackgroundColor Cyan
+    Write-Host "   _________________________________________________________________________________" -ForegroundColor DarkCyan
 
-    Write-Host "`n   [FLUJOS DE TRABAJO RECOMENDADOS]                                                 " -ForegroundColor Black -BackgroundColor Cyan
-    Write-Host "   A$i.. " -NoNewline -ForegroundColor Cyan; Write-Host "MODO WEB (Brave/Docs)   " -NoNewline -ForegroundColor Gray; Write-Host ": hiber1" -ForegroundColor Gray; $i++
-    Write-Host "   A$i.. " -NoNewline -ForegroundColor Cyan; Write-Host "MODO DEV (Python/Code)  " -NoNewline -ForegroundColor Gray; Write-Host ": hiber2 + focalizar" -ForegroundColor Gray; $i++
-    Write-Host "   A$i.. " -NoNewline -ForegroundColor Cyan; Write-Host "MODO LLM (Ollama/Local) " -NoNewline -ForegroundColor Gray; Write-Host ": hiber3 + ramollama + focalizar -IsolateOllama" -ForegroundColor Gray; $i++
-    Write-Host "   A$i.. " -NoNewline -ForegroundColor Cyan; Write-Host "RESTAURAR TODO          " -NoNewline -ForegroundColor Gray; Write-Host ": reversahiber" -ForegroundColor Gray
+    Write-Host "`n   [FLUJOS DE TRABAJO RECOMENDADOS]                                                 " -ForegroundColor DarkCyan
+    Write-Host "   A$i.. " -NoNewline -ForegroundColor DarkCyan; Write-Host "MODO WEB (Brave/Docs)   " -NoNewline -ForegroundColor White; Write-Host ": hiber1" -ForegroundColor White; $i++
+    Write-Host "   A$i.. " -NoNewline -ForegroundColor DarkCyan; Write-Host "MODO DEV (Python/Code)  " -NoNewline -ForegroundColor White; Write-Host ": hiber2 + focalizar" -ForegroundColor White; $i++
+    Write-Host "   A$i.. " -NoNewline -ForegroundColor DarkCyan; Write-Host "MODO LLM (Ollama/Local) " -NoNewline -ForegroundColor White; Write-Host ": hiber3 + ram3 + focalizar -IsolateOllama" -ForegroundColor White; $i++
+    Write-Host "   A$i.. " -NoNewline -ForegroundColor DarkCyan; Write-Host "RESTAURAR TODO          " -NoNewline -ForegroundColor White; Write-Host ": reversahiber" -ForegroundColor White
 
-    Write-Host "`n   [ATAJOS] c (cls) | e (explorador) | ex (salir) | r (recarga)" -ForegroundColor Yellow
-    Write-Host "   [ADMIN]  ram2, ramollama, focalizar, hiber* requieren permisos elevados." -ForegroundColor Red
+    Write-Host "`n   [ATAJOS] c (cls) | e (explorador) | ex (salir) | r (recarga)" -ForegroundColor DarkCyan
+    Write-Host "   [ADMIN]  ram2, ram3, focalizar, hiber* requieren permisos elevados." -ForegroundColor DarkCyan
     Write-Host ""
 }
 
@@ -1277,7 +1458,7 @@ Set-Alias -Name c -Value Clear-Host
 function e { explorer . }
 function ex { exit }
 function r {
-    Write-Host "`n[!] Reiniciando PAN v2.2..." -ForegroundColor Magenta
+    Write-Host "`n[!] Reiniciando PAN v2.3..." -ForegroundColor DarkCyan
     . $profile
 }
 
@@ -1332,7 +1513,3 @@ $loadTime = $startTimer.Elapsed.TotalMilliseconds.ToString('F0')
 Write-Host "────────────────────────────────────────────────────────" -ForegroundColor DarkGray
 Write-Host " ✓ Sistema Listo | Carga: $($loadTime)ms | Atajos: c, e, ex, r" -ForegroundColor DarkGray
 Write-Host "────────────────────────────────────────────────────────" -ForegroundColor DarkGray
-
-# ═══════════════════════════════════════════════════════════
-# FIN - PANÓPTICO v2.2 | DICIEMBRE, 2025 | CFCA |
-# ═══════════════════════════════════════════════════════════
