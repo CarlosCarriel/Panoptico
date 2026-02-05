@@ -40,12 +40,23 @@ try {
 # [KERNEL] Definiciones Nativas (P/Invoke) - Carga Estática
 
 # Compilamos la firma C# al inicio para evitar lag durante la ejecución.
+# EmptyWorkingSet suele estar expuesto vía psapi.dll en sistemas Windows; definimos tipo completo.
 if (-not ([System.Management.Automation.PSTypeName]'WinAPI.Memory').Type) {
     $signature = @"
-    [DllImport("kernel32.dll", SetLastError=true)]
-    public static extern bool EmptyWorkingSet(IntPtr proc);
+using System;
+using System.Runtime.InteropServices;
+namespace WinAPI {
+    public static class Memory {
+        [DllImport("psapi.dll", SetLastError=true)]
+        public static extern bool EmptyWorkingSet(IntPtr hProcess);
+    }
+}
 "@
-    Add-Type -MemberDefinition $signature -Name Memory -Namespace WinAPI -ErrorAction SilentlyContinue
+    try {
+        Add-Type -TypeDefinition $signature -ErrorAction Stop
+    } catch {
+        # Si falla, dejamos que las funciones que dependan de EmptyWorkingSet detecten su ausencia.
+    }
 }
 
 $Arsenal = [ordered] @{
@@ -417,23 +428,40 @@ function ram2 {
     # 2. Compactación de memoria (EmptyWorkingSet) - API nativa (optimización .NET)
     Write-Host "`n2/3 - Compactando memoria de procesos (EmptyWorkingSet)..." -ForegroundColor Yellow
     
-    # [HACK] Acceso directo a .NET para evitar el overhead de Get-Process
-    $procs = [System.Diagnostics.Process]::GetProcesses()
+    # [HACK] EmptyWorkingSet mejorado: seleccionar por WorkingSet, sesión/owner y loguear intentos
+    $threshold = 10MB
     $emptied = 0
-    $threshold = 10MB # límite inferior
+    $attempted = 0
+    $failed = 0
 
-    foreach ($proc in $procs) {
+    $mySession = (Get-Process -Id $PID -ErrorAction SilentlyContinue).SessionId
+    $cimProcs = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object { $_.WorkingSetSize -gt $threshold }
+
+    foreach ($p in $cimProcs) {
         try {
-            # >10MB, evitando procesos muy pequeños
-            if ($proc.WorkingSet64 -gt $threshold) {
+            $attempted++
+            # Intentar obtener owner; si falla, caer a check por SessionId
+            $owner = $null
+            try { $ownerInfo = $p.GetOwner(); $owner = $ownerInfo.User } catch { }
+
+            if ($owner -and ($owner -ne $env:USERNAME) -and ($p.SessionId -ne $mySession)) {
+                # No es proceso del usuario actual ni de la misma sesión: saltar
+                continue
+            }
+
+            $proc = Get-Process -Id $p.ProcessId -ErrorAction Stop
+            try {
                 $null = [WinAPI.Memory]::EmptyWorkingSet($proc.Handle)
                 $emptied++
+            } catch {
+                $failed++
             }
         } catch {
-            # Los procesos de sistema protegidos o zombies fallarán (es normal)
+            $failed++
         }
     }
-    Write-Host "      $emptied procesos compactados a nivel de kernel" -ForegroundColor Green
+
+    Write-Host "      Intentados: $attempted, Compactados: $emptied, Fallidos: $failed" -ForegroundColor Green
 
     # 3. Liberación de memoria (.NET interno)
     Write-Host "`n3/3 - Saneamiento del CLR (.NET)..." -ForegroundColor Yellow
@@ -499,15 +527,21 @@ function ram3 {
 
     # 2. Compactación de memoria agresiva (EmptyWorkingSet) (umbral 100MB)
     Write-Host "`n[2/4] Compactando procesos grandes (>100MB)..." -ForegroundColor Yellow
-    $processes = Get-Process | Where-Object { $_.WS -gt 100MB }
-    $emptied = 0
-    foreach ($proc in $processes) {
+    $threshold = 100MB
+    $emptied = 0; $attempted = 0; $failed = 0
+    $mySession = (Get-Process -Id $PID -ErrorAction SilentlyContinue).SessionId
+    $heavyProcs = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object { $_.WorkingSetSize -gt $threshold }
+    foreach ($p in $heavyProcs) {
+        $attempted++
         try {
-            $null = [WinAPI.Memory]::EmptyWorkingSet($proc.Handle)
-            $emptied++
-        } catch { }
+            $owner = $null
+            try { $ownerInfo = $p.GetOwner(); $owner = $ownerInfo.User } catch { }
+            if ($owner -and ($owner -ne $env:USERNAME) -and ($p.SessionId -ne $mySession)) { continue }
+            $proc = Get-Process -Id $p.ProcessId -ErrorAction Stop
+            try { $null = [WinAPI.Memory]::EmptyWorkingSet($proc.Handle); $emptied++ } catch { $failed++ }
+        } catch { $failed++ }
     }
-    Write-Host "   $emptied procesos optimizados" -ForegroundColor Green
+    Write-Host "   Intentados: $attempted, Optimizado: $emptied, Fallidos: $failed" -ForegroundColor Green
 
     # 3. Limpieza de memoria (agresiva, 3 ciclos)
     Write-Host "`n3/4 - Liberación agresiva de memoria..." -ForegroundColor Yellow
@@ -710,7 +744,8 @@ function focalizar {
 function Invoke-PanopticoHibernate {
     param(
         [Parameter(Mandatory)] [array]$Targets,
-        [Parameter(Mandatory)] [string]$PhaseName
+            [Parameter(Mandatory)] [string]$PhaseName,
+            [switch]$WhatIfSimulate
     )
 
     $beforeRAM = (Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory
@@ -723,6 +758,17 @@ function Invoke-PanopticoHibernate {
 
     $hibernated = @()
 
+    # Persistir snapshot actual como backup antes de cambios destructivos (seguro)
+    try {
+        $snapshotBackup = Join-Path $hibDir ("service_snapshot_{0}.json" -f (Get-Date -Format 'yyyyMMdd_HHmmss'))
+            if ($global:ServiceSnapshot -and $global:ServiceSnapshot.Count -gt 0) {
+            $global:ServiceSnapshot | ConvertTo-Json -Depth 5 | Out-File -FilePath $snapshotBackup -Encoding UTF8 -Force
+            Write-Verbose "ServiceSnapshot backup saved: $snapshotBackup"
+        }
+    } catch {
+        Write-Verbose "Failed saving ServiceSnapshot backup: $($_.Exception.Message)"
+    }
+
     foreach ($t in $Targets) {
         # VERIFICACIÓN DE SEGURIDAD
         if ($VitalServices -contains $t.Name) {
@@ -732,22 +778,43 @@ function Invoke-PanopticoHibernate {
 
         # --- TIPO: SERVICIO ---
         if ($t.Type -eq "Service" -or $null -eq $t.Type) {
-            $svc = Get-Service -Name $t.Name -ErrorAction SilentlyContinue
-            if ($svc) {
-                # Snapshot (Guardar estado original)
-                if (-not $global:ServiceSnapshot.ContainsKey($t.Name)) {
-                    $global:ServiceSnapshot[$t.Name] = @{
-                        Status = $svc.Status
-                        StartType = $svc.StartType
-                        Timestamp = Get-Date
-                        Phase = $PhaseName
-                    }
+            # Consulta CIM más robusta para validar capacidades del servicio
+            $svcCim = Get-CimInstance Win32_Service -Filter "Name='$($t.Name)'" -ErrorAction SilentlyContinue
+            if ($svcCim) {
+                # Evitar tocar drivers/servicios críticos que no aplican
+                if ($svcCim.StartMode -in @('Boot','System')) {
+                    Write-Host "   [ESCUDO] $($t.Name) es driver/servicio de arranque: saltando" -ForegroundColor DarkGray
+                    continue
                 }
-                # Acción
+                if (-not $svcCim.AcceptStop) {
+                    Write-Host "   [ESCUDO] $($t.Name) no acepta Stop: saltando (posible servicio protegido)" -ForegroundColor DarkGray
+                    continue
+                }
+
+                # Acción (simulación segura si se solicita)
+                if ($WhatIfSimulate) {
+                    Write-Host "   [SIM] Set-Service -Name $($t.Name) -StartupType Disabled" -ForegroundColor Yellow
+                    Write-Host "   [SIM] Stop-Service -Name $($t.Name) -Force" -ForegroundColor Yellow
+                    continue
+                }
+
+                # Snapshot (Guardar estado original) - sólo si aplicamos cambios
+                try {
+                    $svc = Get-Service -Name $t.Name -ErrorAction Stop
+                    if (-not $global:ServiceSnapshot.ContainsKey($t.Name)) {
+                        $global:ServiceSnapshot[$t.Name] = @{
+                            Status = $svc.Status
+                            StartType = $svc.StartType
+                            Timestamp = Get-Date
+                            Phase = $PhaseName
+                        }
+                    }
+                } catch { }
+
                 try {
                     Set-Service -Name $t.Name -StartupType Disabled -ErrorAction Stop
                     Stop-Service -Name $t.Name -Force -ErrorAction Stop
-                        Write-Host "   $($t.Name) → Hibernado" -ForegroundColor Green
+                    Write-Host "   $($t.Name) → Hibernado" -ForegroundColor Green
                     $hibernated += $t.Name
                 } catch {
                     Write-Host "   $($t.Name) → Falló: $($_.Exception.Message)" -ForegroundColor DarkYellow
@@ -789,6 +856,7 @@ function Invoke-PanopticoHibernate {
 # [FUNC] hiber1 - Telemetría Microsoft (Nivel 1)
 
 function hiber1 {
+    param([switch]$WhatIfSimulate)
     if (-not $global:PanopticoEnv.IsAdmin) { Write-Host "`n[✗] REQUIERE ADMIN." -ForegroundColor Red; return }
 
     Write-Host "`n+========================================================+" -ForegroundColor Cyan
@@ -813,13 +881,14 @@ function hiber1 {
         @{Type="Service"; Name="CDPSvc"; Desc="Connected Devices Platform (Port 5040)"}
     )
 
-        Invoke-PanopticoHibernate -Targets $targets -PhaseName "ligero"
+        Invoke-PanopticoHibernate -Targets $targets -PhaseName "ligero" -WhatIfSimulate:$WhatIfSimulate
 }
 
 
 # [FUNC] hiber2 - OEM Bloatware (Nivel 2)
 
 function hiber2 {
+    param([switch]$WhatIfSimulate)
     if (-not $global:PanopticoEnv.IsAdmin) { Write-Host "`n[✗] REQUIERE ADMIN." -ForegroundColor Red; return }
 
     Write-Host "`n+========================================================+" -ForegroundColor Cyan
@@ -839,13 +908,14 @@ function hiber2 {
         @{Type="Service"; Name="AnyDesk"; Desc="AnyDesk Service"}
     )
 
-        Invoke-PanopticoHibernate -Targets $targets -PhaseName "auxiliares"
+        Invoke-PanopticoHibernate -Targets $targets -PhaseName "auxiliares" -WhatIfSimulate:$WhatIfSimulate
 }
 
 
 # [FUNC] hiber3 - Modo Deep Work (Nivel 3)
 
 function hiber3 {
+    param([switch]$WhatIfSimulate)
     if (-not $global:PanopticoEnv.IsAdmin) { Write-Host "`n[✗] REQUIERE ADMIN." -ForegroundColor Red; return }
 
     Write-Host "`n+========================================================+" -ForegroundColor Cyan
@@ -862,7 +932,7 @@ function hiber3 {
         @{Type="Service"; Name="Stisvc"; Desc="Windows Image Acquisition (Scanner)"}
     )
 
-        Invoke-PanopticoHibernate -Targets $targets -PhaseName "trabajo profundo"
+        Invoke-PanopticoHibernate -Targets $targets -PhaseName "trabajo profundo" -WhatIfSimulate:$WhatIfSimulate
 }
 
 
@@ -977,7 +1047,8 @@ function reversahiber {
     [CmdletBinding()]
     param(
         [ValidateSet("Light", "Terceros", "DeepWork", "All")]
-        [string]$Phase = "All"
+            [string]$Phase = "All",
+            [switch]$WhatIfSimulate
     )
 
     if (-not $global:PanopticoEnv.IsAdmin) {
@@ -997,13 +1068,21 @@ function reversahiber {
 
     Write-Host "`n[→] Revirtiendo cambios de Fase: $Phase..." -ForegroundColor Yellow
 
+    # [FIX] Mapeo Phase (UI) → PhaseName (snapshot): reversahiber usa Light/Terceros/DeepWork; snapshot guarda ligero/auxiliares/trabajo profundo
+    $phaseToRevert = switch ($Phase) {
+        "Light"    { "ligero" }
+        "Terceros" { "auxiliares" }
+        "DeepWork" { "trabajo profundo" }
+        default    { $Phase }
+    }
+
     $reverted = @()
     foreach ($entry in $global:ServiceSnapshot.GetEnumerator()) {
         $name = $entry.Key
         $snapshot = $entry.Value
 
-        # Filtrar por fase si no es "All"
-        if ($Phase -ne "All" -and $snapshot.Phase -ne $Phase) {
+        # Filtrar por fase si no es "All" (comparar con el nombre interno guardado en snapshot)
+        if ($Phase -ne "All" -and $snapshot.Phase -ne $phaseToRevert) {
             continue
         }
 
@@ -1056,23 +1135,37 @@ function reversahiber {
         $svc = Get-Service -Name $name -ErrorAction SilentlyContinue
         if ($svc) {
             try {
-                Set-Service -Name $name -StartupType $snapshot.StartType -ErrorAction Stop
-                if ($snapshot.Status -eq "Running") {
-                    Start-Service -Name $name -ErrorAction Stop
+                # Safety: verificar StartMode/AcceptStop antes de aplicar cambios si es aplicable
+                $svcCim = Get-CimInstance Win32_Service -Filter "Name='$name'" -ErrorAction SilentlyContinue
+                if ($svcCim -and $svcCim.StartMode -in @('Boot','System')) {
+                    Write-Host "      [ESCUDO] $name es driver/servicio de arranque: no se modifica" -ForegroundColor DarkGray
+                    continue
                 }
-                Write-Host "      Servicio revertido: $name ($($snapshot.StartType), $($snapshot.Status))" -ForegroundColor Green
-                $reverted += $name
+
+                # If snapshot indicates previous StartType/status, attempt revert; support simulation mode
+                if ($WhatIfSimulate) {
+                    Write-Host "      [SIM] Set-Service -Name $name -StartupType $($snapshot.StartType)" -ForegroundColor Yellow
+                    if ($snapshot.Status -eq "Running") { Write-Host "      [SIM] Start-Service -Name $name" -ForegroundColor Yellow }
+                    $reverted += $name
+                } else {
+                    Set-Service -Name $name -StartupType $snapshot.StartType -ErrorAction Stop
+                    if ($snapshot.Status -eq "Running") {
+                        try { Start-Service -Name $name -ErrorAction Stop } catch { Write-Host "      Start-Service fallo: $($_.Exception.Message)" -ForegroundColor DarkYellow }
+                    }
+                    Write-Host "      Servicio revertido: $name ($($snapshot.StartType), $($snapshot.Status))" -ForegroundColor Green
+                    $reverted += $name
+                }
             } catch {
-                Write-Host "      Falló revertir: $name" -ForegroundColor DarkYellow
+                Write-Host "      Falló revertir: $name ($($_.Exception.Message))" -ForegroundColor DarkYellow
             }
         }
     }
 
-    # Limpiar snapshot de servicios revertidos
+    # Limpiar snapshot de servicios revertidos (usar nombre interno de fase)
     if ($Phase -eq "All") {
         $global:ServiceSnapshot.Clear()
     } else {
-        $toRemove = $global:ServiceSnapshot.GetEnumerator() | Where-Object {$_.Value.Phase -eq $Phase} | ForEach-Object {$_.Key}
+        $toRemove = $global:ServiceSnapshot.GetEnumerator() | Where-Object { $_.Value.Phase -eq $phaseToRevert } | ForEach-Object { $_.Key }
         foreach ($key in $toRemove) {
             $global:ServiceSnapshot.Remove($key)
         }
@@ -1474,7 +1567,7 @@ if (-not $global:OllamaJob -or -not (Get-Job -Id $global:OllamaJob.Id -ErrorActi
 }
 
 
-# [OPTIMIZACIÓN] Lazy Loading de Conda... truco rescatadp del foro Ruso eliminado 
+# [OPTIMIZACIÓN] Lazy Loading de Conda...  
 
 # No invocamos conda al inicio. Creamos un wrapper que se auto-destruye y carga el real al usarse.
 function Global:conda {

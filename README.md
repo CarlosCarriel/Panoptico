@@ -1,13 +1,13 @@
-# Panóptico v2.3 - Optimizaciones de Red
+# Panóptico v2.4 - Seguridad y "Safeguards"
 
 ## Descripción
-Mejora significativa en el rendimiento de los módulos de red y diagnóstico.
+Versión final de la arquitectura monolítica. Introduce capas de seguridad críticas antes del salto a la modularidad.
 
 ## Cambios Principales (Changelog)
-- **Escáner de Red Paralelo**: Implementación de `ForEach-Object -Parallel` para escaneos de subred más rápidos (PowerShell 7+).
-- **Monitor de GPU Persistente**: Se añade caché a la lectura de `nvidia-smi` para evitar lag en el loop de `monitor`.
-- **Top Procesos O(1)**: Optimización de tablas hash para reducir el uso de CPU del propio script.
+- **Listas Blancas (Safeguards)**: Protección hardcodeada para servicios vitales (`Dhcp`, `Dnscache`, `ClickToRunSvc`) en la función `Invoke-PanopticoHibernate`.
+- **Modo Simulación**: Parámetro `-WhatIfSimulate` interno para pruebas.
+- **Refinamiento de Purga**: Mejoras en `purgap` para entornos de Data Science (Conda/Jupyter).
 
 ## Estado
-- **Status**: Obsoleto (Legacy).
-- **Archivo**: `Panoptico_v2.3.ps1`
+- **Status**: Stable Release (Monolithic).
+- **Archivo**: `Panoptico_v2.4.ps1`
