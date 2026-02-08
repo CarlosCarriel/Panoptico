@@ -116,23 +116,24 @@ Panóptico/
 
 ## Ejemplo de Uso
 
-### Escenario: Liberar RAM antes de trabajar
+### Escenario general: Ejecutar secuencia de funciones después de comenzar el trabajo
 ```powershell
 # 1. Ver estado actual
-top
+Top
 
 # 2. Limpieza ligera
-ram1
+Ram1
 
 # 3. Si necesitas más, compactación
-ram2
+Ram2
 
 # 4. Hibernar servicios innecesarios
-hiber1
-hiber2
+Hiber1
+Hiber2
 
 # 5. Verificar mejora
-top
+Top
+
 ```
 
 ### Resultado Esperado
@@ -140,6 +141,46 @@ top
 - **Después**: 20-35% RAM usada
 - **Liberado**: ~3-6 GB
 
+### Escenario de jornada intensa de trabajo:
+
+```powershell
+# 1. Replique flujo anterior.
+
+# 2. Ejecute.
+Hiber3
+Ram3
+
+# 3. Posterior a ello, asegúrese de iniciar las aplicaciones con las que trabajará.
+
+# 4. Priorizar recursos.
+Focalizar
+
+[FOCALIZAR] GESTIÓN DE PRIORIDADES
+
+Aplicaciones protegidas (No se cierran en ram3):
+
+   [1] ollama
+   [2] python
+   [3] jupyter
+   [4] brave
+   [5] excel
+   [6] nvda
+   [7] code
+
+[OPCIONES]
+ A - Agregar Proceso
+ R - Remover Proceso
+ X - Volver al Menú
+
+Seleccione una opción:_______
+
+
+```
+
+¿Desea modificar la lista de procesos 'VIP'?  
+```
+Puede hacerlo en config.json (236-247).
+```
 ---
 
 ## Novedades v3.0
@@ -162,7 +203,7 @@ top
 - Aliases de flujo de trabajo (`e`, `ex`)
 
 ### Funcionalidades Removidas (v2.x → v3.0)
-- `purga`, `purgagp` y comandos similares (simplificados en `ram1/ram2/ram3`)
+- `ollama`, `red`, `verseguridad`.
 
 ### Mejoras Técnicas
 - Monitor GPU mejorado (NVIDIA)
