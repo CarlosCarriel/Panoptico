@@ -1,0 +1,247 @@
+{
+  "Settings": {
+    "Theme": "Dark",
+    "AdminRequired": true,
+    "MemoryThresholds": {
+      "Ram2_MB": 10,
+      "Ram3_MB": 100
+    }
+  },
+  "Paths": {
+    "Ollama": "ollama",
+    "CondaHookApp": "$HOME\\anaconda3\\Scripts\\conda.exe",
+    "Logs": "$HOME\\Documents\\PowerShell\\panoptico_hibernacion.log"
+  },
+  "Optimization": {
+    "Ram1_Targets": [
+      "PhoneExperienceHost",
+      "StartMenuExperienceHost",
+      "Widgets",
+      "MicrosoftEdgeUpdate",
+      "*nvidia*",
+      "nvcontainer*",
+      "NVDisplay*",
+      "TextInputHost",
+      "AcrobatNotificationClient",
+      "cloudcode_cli",
+      "backgroundTaskHost",
+      "mysqld",
+      "GooglePlayGames*", 
+      "Lenovo.Modern.ImController",
+      "AdobeCollabSync"
+    ],
+    "Ram2_Bloat": [
+      "RuntimeBroker"
+    ],
+    "Ram3_Aggressive": [
+      "MicrosoftEdge",
+      "GoogleChrome",
+      "firefox",
+      "Teams",
+      "Discord",
+      "Spotify",
+      "YourPhone",
+      "OneDrive",
+      "node",
+      "calculator",
+      "brave"
+    ],
+    "Ram_Exclusions": [
+      "explorer",
+      "sihost",
+      "fontdrvhost",
+      "dwm",
+      "csrss",
+      "smss",
+      "winlogon",
+      "services",
+      "lsass",
+      "svchost",
+      "System",
+      "Registry",
+      "Memory Compression",
+      "MsMpEng",
+      "NisSrv"
+    ]
+  },
+  "Hibernation": {
+    "Level1_Telemetry": [
+      {
+        "Name": "DiagTrack",
+        "Type": "Service",
+        "Desc": "Experiencias del usuario conectado y telemetría"
+      },
+      {
+        "Name": "diagnosticshub.standardcollector.service",
+        "Type": "Service",
+        "Desc": "Concentrador de diagnósticos de Microsoft"
+      },
+      {
+        "Name": "dmwappushservice",
+        "Type": "Service",
+        "Desc": "Servicio de enrutamiento de mensajes WAP Push"
+      },
+      {
+        "Name": "WerSvc",
+        "Type": "Service",
+        "Desc": "Servicio de informe de errores de Windows"
+      },
+      {
+        "Name": "DusmSvc",
+        "Type": "Service",
+        "Desc": "Uso de datos y límites de red"
+      },
+      {
+        "Name": "gupdate",
+        "Type": "Service",
+        "Desc": "Servicio de actualización de Google"
+      },
+      {
+        "Name": "gupdatem",
+        "Type": "Service",
+        "Desc": "Servicio de actualización de Google (Manual)"
+      },
+      {
+        "Name": "bdvpnService",
+        "Type": "Service",
+        "Desc": "Servicio VPN de Bitdefender"
+      },
+      {
+        "Name": "EpsonScanSvc",
+        "Type": "Service",
+        "Desc": "Servicio de escaneo de Epson"
+      },
+      {
+        "Name": "OneSyncSvc",
+        "Type": "Service",
+        "Desc": "Anfitrión de sincronización (OneDrive/Cuentas)"
+      },
+      {
+        "Name": "DoSvc",
+        "Type": "Service",
+        "Desc": "Optimización de entrega de actualizaciones"
+      },
+      {
+        "Name": "MapsBroker",
+        "Type": "Service",
+        "Desc": "Administrador de mapas descargados"
+      },
+      {
+        "Name": "CDPSvc",
+        "Type": "Service",
+        "Desc": "Plataforma de dispositivos conectados"
+      }
+    ],
+    "Level2_Auxiliary": [
+      {
+        "Name": "LenovoVantageService",
+        "Type": "Service",
+        "Desc": "Servicio de soporte Lenovo Vantage"
+      },
+      {
+        "Name": "CorsairService",
+        "Type": "Service",
+        "Desc": "Controlador de audio Corsair Gaming"
+      },
+      {
+        "Name": "AdobeARMservice",
+        "Type": "Service",
+        "Desc": "Actualizador de Adobe Acrobat"
+      },
+      {
+        "Name": "BraveElevationService",
+        "Type": "Service",
+        "Desc": "Servicio de elevación de Brave"
+      },
+      {
+        "Name": "BraveUpdate",
+        "Type": "Service",
+        "Desc": "Servicio de actualización de Brave (Principal)"
+      },
+      {
+        "Name": "BraveUpdatem",
+        "Type": "Service",
+        "Desc": "Servicio de actualización de Brave (Manual)"
+      },
+      {
+        "Name": "BraveVpnService",
+        "Type": "Service",
+        "Desc": "Servicio VPN de Brave"
+      },
+      {
+        "Name": "TeamViewer",
+        "Type": "Service",
+        "Desc": "Control remoto TeamViewer"
+      },
+      {
+        "Name": "AnyDesk",
+        "Type": "Service",
+        "Desc": "Servicio de escritorio remoto AnyDesk"
+      }
+    ],
+    "Level3_DeepWork": [
+      {
+        "Name": "Spooler",
+        "Type": "Service",
+        "Desc": "Cola de impresión"
+      },
+      {
+        "Name": "SysMain",
+        "Type": "Service",
+        "Desc": "Administrador de precarga de aplicaciones"
+      },
+      {
+        "Name": "Themes",
+        "Type": "Service",
+        "Desc": "Temas y estilos visuales de Windows"
+      },
+      {
+        "Name": "TabletInputService",
+        "Type": "Service",
+        "Desc": "Servicio de teclado táctil y panel de escritura"
+      },
+      {
+        "Name": "WbioSrvc",
+        "Type": "Service",
+        "Desc": "Servicio biométrico de Windows"
+      },
+      {
+        "Name": "Stisvc",
+        "Type": "Service",
+        "Desc": "Adquisición de imágenes de Windows (Escáner/Cámara)"
+      }
+    ]
+  },
+  "Security": {
+    "VitalServices": [
+      "ClickToRunSvc",
+      "Dhcp",
+      "Dnscache",
+      "LanmanWorkstation",
+      "WSearch",
+      "RpcSs",
+      "EventLog",
+      "AudioSrv"
+    ],
+    "EdrExclusions": [
+      "WinDefend",
+      "WdNisSvc",
+      "Sense",
+      "CrowdStrike",
+      "McAfeeFramework",
+      "Sophos",
+      "CarbonBlack"
+    ]
+  },
+  "Focalizar": {
+    "VipProcesses": [
+      "ollama",
+      "python",
+      "jupyter",
+      "brave",
+      "excel",
+      "nvda",
+      "code"
+    ]
+  }
+}

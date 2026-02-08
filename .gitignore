@@ -1,0 +1,26 @@
+# Logs personales (contienen info de infraestructura)
+*.log
+
+# Perfiles de PowerShell (rutas específicas)
+profile.ps1
+profile.pwsh
+Microsoft.PowerShell_profile.ps1
+
+# Script de deploy (contiene rutas hardcodeadas)
+deploy.ps1
+
+# Archivos de entorno y personales
+AreaDeTrabajo05022026.code-workspace
+*.code-workspace
+agents.md
+.gitattributes
+
+# Archivos temporales
+*.tmp
+*.bak
+~$*
+
+# ===== TESTS & DESARROLLO =====
+# Subdirectorio completo de tests
+tests/
+tests/**
