@@ -42,7 +42,7 @@ Sistema avanzado de gestión de memoria RAM y servicios de Windows con interfaz 
 ### Instalación Rápida
 ```powershell
 # 1. Clonar repositorio
-git clone https://github.com/tu-usuario/panoptico.git
+git clone https://github.com/CarlosCarriel/quaderni.git
 cd panoptico
 
 # 2. Cargar Panóptico
@@ -288,7 +288,7 @@ MIT License - Úsalo libremente, modifícalo, compártelo.
 ## Agradecimientos
 
 Inspirado en:
-- ¿jugaste Doom en los 90? Yo sí, en un 486 de 4mb en ram y para que eso fuera posible, debíamos interrumpir la carga del sistema (iniciando MS-DOS...) con F5/F8, de esa forma liberábamos la RAM suficiente para ese y otros juegos. Eso, de alguna manera, me recuerda que, ajustando las tuercas, siempre puedes obtener mejor rendimiento.
+- ¿Jugaste Doom en los 90? Yo sí, en un 486 de 4mb en ram y para que eso fuera posible, debíamos interrumpir la carga del sistema (iniciando MS-DOS...) con F5/F8, de esa forma liberábamos la RAM suficiente para ese y otros juegos. Eso, de alguna manera, me recuerda que, ajustando las tuercas, siempre puedes obtener mejor rendimiento.
 - Lotus 1-2-3 (estética retro)
 - Herramientas clásicas de optimización DOS/Windows
 
