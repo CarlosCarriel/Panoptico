@@ -44,10 +44,12 @@ Sistema avanzado de gestión de memoria RAM y servicios de Windows con interfaz 
 # 1. Clonar repositorio
 git clone https://github.com/CarlosCarriel/quaderni.git
 cd panoptico
-
+```
+```
 # 2. Cargar Panóptico
 . .\Panoptico.ps1
-
+```
+```
 # 3. Ver menú
 pan
 ```
