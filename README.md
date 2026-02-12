@@ -42,7 +42,7 @@ Sistema avanzado de gestión de memoria RAM y servicios de Windows con interfaz 
 ### Instalación Rápida
 ```powershell
 # 1. Clonar repositorio
-git clone https://github.com/CarlosCarriel/quaderni.git
+git clone https://github.com/CarlosCarriel/panoptico.git
 cd panoptico
 ```
 ```
